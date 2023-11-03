@@ -7,7 +7,7 @@
 """
 import torch
 from torch import nn
-
+from fairseq.models import FairseqEncoder, FairseqDecoder
 """
 the architecture of the generator and executor
 """
