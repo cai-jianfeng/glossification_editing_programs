@@ -68,7 +68,8 @@ def create_pad_mask(t, pad):
 def create_trg_self_mask(target_len, device=None):
     # Prevent leftward information flow in self-attention.
     ones = torch.ones(target_len, target_len, dtype=torch.uint8,
-                      device=device)
-    t_self_mask = torch.triu(ones, diagonal=1).unsqueeze(0)
+                      device=device)  # [target_len, target_len]
+    # torch.triu(·): 以 diagonal 为对角线返回上三角矩阵
+    t_self_mask = torch.triu(ones, diagonal=1).unsqueeze(0)  # [target_len, target_len]
 
     return t_self_mask

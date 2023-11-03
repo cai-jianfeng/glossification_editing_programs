@@ -226,6 +226,18 @@ class Transformer(nn.Module):
                  has_inputs=True,
                  src_pad_idx=None,
                  trg_pad_idx=None):
+        """
+        :param i_vocab_size: int, the vocabulary size of the inputs
+        :param t_vocab_size: int, the vocabulary size of the outputs (in this project, i_vocab_size = t_vocab_size)
+        :param n_layers: int, the layer number of the transformer encoder and decoder
+        :param hidden_size: int, d_model in the transformer
+        :param inner_size: int, inner-layer dimensionality in the feed forward network
+        :param dropout_rate: int, the dropout rate in the transformer
+        :param share_target_embedding: bool, whether the inputs and outputs embedding is the same
+        :param has_inputs: bool, whether has the input
+        :param src_pad_idx: int, the index of '<pad>' in the input vocabulary
+        :param trg_pad_idx: int, the index of '<pad>' in the output vocabulary (in this project, src_pad_idx = trg_pad_idx)
+        """
         super(Transformer, self).__init__()
 
         self.hidden_size = hidden_size
@@ -268,36 +280,40 @@ class Transformer(nn.Module):
         self.register_buffer('inv_timescales', inv_timescales)
 
     def forward(self, inputs, targets):
+        # inputs.shape = [b, i_len]
+        # targets.shape = [b, t_len]
         enc_output, i_mask = None, None
         if self.has_inputs:
-            i_mask = utils.create_pad_mask(inputs, self.src_pad_idx)
+            i_mask = utils.create_pad_mask(inputs, self.src_pad_idx)  # [b, 1, i_len]
             enc_output = self.encode(inputs, i_mask)
 
-        t_mask = utils.create_pad_mask(targets, self.trg_pad_idx)
-        target_size = targets.size()[1]
+        t_mask = utils.create_pad_mask(targets, self.trg_pad_idx)  # [b, 1, t_len]
+        target_size = targets.size()[1]  # t_len
         t_self_mask = utils.create_trg_self_mask(target_size,
-                                                 device=targets.device)
+                                                 device=targets.device)  # [t_len, t_len]
         return self.decode(targets, enc_output, i_mask, t_self_mask, t_mask)
 
     def encode(self, inputs, i_mask):
         # Input embedding
-        input_embedded = self.i_vocab_embedding(inputs)
-        input_embedded.masked_fill_(i_mask.squeeze(1).unsqueeze(-1), 0)
-        input_embedded *= self.emb_scale
-        input_embedded += self.get_position_encoding(inputs)
-        input_embedded = self.i_emb_dropout(input_embedded)
+        input_embedded = self.i_vocab_embedding(inputs)  # [b, i_len, d_model]
+        # i_mask.squeeze(1).unsqueeze(-1) -> [b, i_len, 1]
+        input_embedded.masked_fill_(i_mask.squeeze(1).unsqueeze(-1), 0)  # [b, i_len, d_model]
+        input_embedded *= self.emb_scale  # [b, i_len, d_model]
+        input_embedded += self.get_position_encoding(inputs)  # [b, i_len, d_model]
+        input_embedded = self.i_emb_dropout(input_embedded)  # [b, i_len, d_model]
 
         return self.encoder(input_embedded, i_mask)
 
     def decode(self, targets, enc_output, i_mask, t_self_mask, t_mask,
                cache=None):
         # target embedding
-        target_embedded = self.t_vocab_embedding(targets)
-        target_embedded.masked_fill_(t_mask.squeeze(1).unsqueeze(-1), 0)
+        target_embedded = self.t_vocab_embedding(targets)  # [b, t_len, d_model]
+        target_embedded.masked_fill_(t_mask.squeeze(1).unsqueeze(-1), 0)  # [b, t_len, d_model]
 
         # Shifting
-        target_embedded = target_embedded[:, :-1]
-        target_embedded = F.pad(target_embedded, (0, 0, 1, 0))
+        # 将 target_embedded 整体右移一个，最右边多出来的舍弃，最左边空出来的 pad 0
+        target_embedded = target_embedded[:, :-1]  # [b, t_len-1, d_model]
+        target_embedded = F.pad(target_embedded, (0, 0, 1, 0))  # [b, t_len, d_model]
 
         target_embedded *= self.emb_scale
         target_embedded += self.get_position_encoding(targets)
@@ -305,20 +321,23 @@ class Transformer(nn.Module):
 
         # decoder
         decoder_output = self.decoder(target_embedded, enc_output, i_mask,
-                                      t_self_mask, cache)
+                                      t_self_mask, cache)  # [b, t_len, d_model]
         # linear
+        # [b, t_len, d_model] * [d_model, t_vocab_size]
         output = torch.matmul(decoder_output,
-                              self.t_vocab_embedding.weight.transpose(0, 1))
+                              self.t_vocab_embedding.weight.transpose(0, 1))  # [b, t_len, t_vocab_size]
 
         return output
 
     def get_position_encoding(self, x):
-        max_length = x.size()[1]
+        max_length = x.size()[1]  # i_len
         position = torch.arange(max_length, dtype=torch.float32,
-                                device=x.device)
-        scaled_time = position.unsqueeze(1) * self.inv_timescales.unsqueeze(0)
+                                device=x.device)  # [i_len,]
+        scaled_time = position.unsqueeze(1) * self.inv_timescales.unsqueeze(0)  # [i_len, d_model // 2]
         signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)],
-                           dim=1)
-        signal = F.pad(signal, (0, 0, 0, self.hidden_size % 2))
-        signal = signal.view(1, max_length, self.hidden_size)
+                           dim=1)  # [i_len, d_model]
+        # F.pad(·) 的第二个参数表示每个维度的 pad 数(一个维度占 2 个位置)
+        # 例如：F.pad(signal, (1, 1, 2, 2)) 表示将 signal 的最后一维左右各 pad 1 个；倒数第二维左右各 pad 2 个
+        signal = F.pad(signal, (0, self.hidden_size % 2, 0, 0))
+        signal = signal.view(1, max_length, self.hidden_size)  # [1, i_len, d_model]
         return signal
