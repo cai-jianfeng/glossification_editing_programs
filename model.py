@@ -22,7 +22,10 @@ the architecture of the generator and executor
 class Generator(nn.Module):
     def __init__(self,
                  i_vocab_size,
-                 t_vocab_size,
+                 p_vocab_size,
+                 src_pad_idx,
+                 trg_pad_idx,
+                 head_num,
                  hidden_size=512,
                  inner_size=2048,
                  dropout_rate=0.1,
@@ -33,18 +36,22 @@ class Generator(nn.Module):
 
         self.hidden_size = hidden_size
         self.emb_scale = hidden_size ** 0.5
+        self.src_pad_idx = src_pad_idx
+        self.trg_pad_idx = trg_pad_idx
 
         self.i_vocab_embedding = nn.Embedding(i_vocab_size, hidden_size)
         if not share_target_embeddings:
-            self.t_vocab_embedding = nn.Embedding(t_vocab_size, hidden_size)
+            self.t_vocab_embedding = nn.Embedding(p_vocab_size, hidden_size)
+        else:
+            self.t_vocab_embedding = self.i_vocab_embedding
         self.i_emb_dropout = nn.Dropout(dropout_rate)
         self.t_emb_dropout = nn.Dropout(dropout_rate)
 
         # Generator Encoder
-        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate) for _ in range(encoder_n_layers)]
+        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate, head_num) for _ in range(encoder_n_layers)]
         self.encoder = nn.ModuleList(encoders)
         # Generator Decoder
-        decoders = [DecoderLayer(hidden_size, inner_size, dropout_rate) for _ in range(decoder_n_layers)]
+        decoders = [DecoderLayer(hidden_size, inner_size, dropout_rate, head_num) for _ in range(decoder_n_layers)]
         self.decoder = nn.ModuleList(decoders)
 
         # position embedding
@@ -127,6 +134,8 @@ class Generator(nn.Module):
 class Executor(nn.Module):
     def __init__(self,
                  t_vocab_size,
+                 pro_pad_idx,
+                 head_num,
                  hidden_size=512,
                  inner_size=2048,
                  dropout_rate=0.1,
@@ -135,12 +144,13 @@ class Executor(nn.Module):
         super(Executor, self).__init__()
         self.hidden_size = hidden_size
         self.emb_scale = hidden_size ** 0.5
+        self.pro_pad_idx = pro_pad_idx
 
         self.t_vocab_embedding = nn.Embedding(t_vocab_size, hidden_size)
         self.t_emb_dropout = nn.Dropout(dropout_rate)
 
         # Executor Encoder
-        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate) for _ in range(encoder_n_layers)]
+        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate, head_num) for _ in range(encoder_n_layers)]
         self.encoder = nn.ModuleList(encoders)
         # position embedding
         num_timescales = self.hidden_size // 2
@@ -154,7 +164,7 @@ class Executor(nn.Module):
     def forward(self, inputs):
         # inputs.shape = [b, t_len]
         # encoder
-        i_mask = utils.create_pad_mask(inputs, self.src_pad_idx)  # [b, 1, i_len]
+        i_mask = utils.create_pad_mask(inputs, self.pro_pad_idx)  # [b, 1, i_len]
         enc_output = self.encode(inputs, i_mask)
         return enc_output
 
@@ -190,33 +200,61 @@ class Glossification(nn.Module):
                  i_vocab_size,
                  p_vocab_size,
                  t_vocab_size,
-                 head_size = 10,
+                 src_pad_idx,
+                 trg_pad_idx,
+                 pro_pad_idx,
+                 head_num=10,
                  hidden_size=512,
                  inner_size=2048,
                  dropout_rate=0.1,
-                 encoder_n_layers=3,
-                 decoder_n_layers=1,
+                 generator_encoder_n_layers=3,
+                 generator_decoder_n_layers=1,
+                 executor_encoder_n_layers=1,
                  share_target_embeddings=True):
+        """
+        :param i_vocab_size: int, the vocabulary size of the inputs
+        :param p_vocab_size: int, the vocabulary size of the programs
+        :param t_vocab_size: int, the vocabulary size of the outputs (in this project, i_vocab_size = t_vocab_size)
+        :param src_pad_idx: int, the index of '<pad>' in the input vocabulary
+        :param trg_pad_idx: int, the index of '<pad>' in the output vocabulary (in this project, src_pad_idx = trg_pad_idx)
+        :param pro_pad_idx: int, the index of '<pad>' in the program vocabulary
+        :param head_num: int, head number in the glossification
+        :param hidden_size: int, d_model in the glossification
+        :param inner_size: int, inner-layer dimensionality in the feed forward network
+        :param dropout_rate: int, the dropout rate in the glossification
+        :param generator_encoder_n_layers: int, the layer number of the generator encoder
+        :param generator_decoder_n_layers: int, the layer number of the generator decoder
+        :param executor_encoder_n_layers: int, the layer number of the executor encoder
+        :param share_target_embeddings: bool, whether the inputs and outputs embedding is the same
+        """
         super(Glossification, self).__init__()
         self.generator = Generator(i_vocab_size,
                                    p_vocab_size,
+                                   src_pad_idx,
+                                   trg_pad_idx,
+                                   head_num,
                                    hidden_size,
                                    inner_size,
                                    dropout_rate,
-                                   encoder_n_layers,
-                                   decoder_n_layers,
+                                   generator_encoder_n_layers,
+                                   generator_decoder_n_layers,
                                    share_target_embeddings)
         self.executor = Executor(t_vocab_size,
+                                 pro_pad_idx,
+                                 head_num,
                                  hidden_size,
                                  inner_size,
                                  dropout_rate,
-                                 encoder_n_layers)
+                                 executor_encoder_n_layers)
         self.edit_attn = MultiHeadAttention(hidden_size,
                                             dropout_rate,
-                                            head_size)
+                                            head_num)
         self.linear = nn.Linear(hidden_size, p_vocab_size)
 
     def forward(self, inputs, targets, programs):
+        # inputs.shape = [b, i_len]
+        # targets.shape = [b, t_len]
+        # programs.shape = [b, p_len]
         gen_outputs = self.generator(inputs, programs)
         exc_outputs = self.executor(targets)
         d_mask = self.execute(inputs, programs)

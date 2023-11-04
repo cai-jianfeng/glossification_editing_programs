@@ -41,25 +41,24 @@ class FeedForwardNetwork(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, hidden_size, dropout_rate, head_size=8):
+    def __init__(self, hidden_size, dropout_rate, head_num=8):
         super(MultiHeadAttention, self).__init__()
 
-        self.head_size = head_size
+        self.head_size = head_num
 
-        self.att_size = att_size = hidden_size // head_size
+        self.att_size = att_size = hidden_size // head_num
         self.scale = att_size ** -0.5
 
-        self.linear_q = nn.Linear(hidden_size, head_size * att_size, bias=False)
-        self.linear_k = nn.Linear(hidden_size, head_size * att_size, bias=False)
-        self.linear_v = nn.Linear(hidden_size, head_size * att_size, bias=False)
+        self.linear_q = nn.Linear(hidden_size, head_num * att_size, bias=False)
+        self.linear_k = nn.Linear(hidden_size, head_num * att_size, bias=False)
+        self.linear_v = nn.Linear(hidden_size, head_num * att_size, bias=False)
         initialize_weight(self.linear_q)
         initialize_weight(self.linear_k)
         initialize_weight(self.linear_v)
 
         self.att_dropout = nn.Dropout(dropout_rate)
 
-        self.output_layer = nn.Linear(head_size * att_size, hidden_size,
-                                      bias=False)
+        self.output_layer = nn.Linear(head_num * att_size, hidden_size, bias=False)
         initialize_weight(self.output_layer)
 
     def forward(self, q, k, v, mask=None, cache=None):
@@ -112,11 +111,11 @@ class MultiHeadAttention(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, hidden_size, inner_size, dropout_rate):
+    def __init__(self, hidden_size, inner_size, dropout_rate, head_num):
         super(EncoderLayer, self).__init__()
 
         self.self_attention_norm = nn.LayerNorm(hidden_size, eps=1e-6)
-        self.self_attention = MultiHeadAttention(hidden_size, dropout_rate)
+        self.self_attention = MultiHeadAttention(hidden_size, dropout_rate, head_num)
         self.self_attention_dropout = nn.Dropout(dropout_rate)
 
         self.ffn_norm = nn.LayerNorm(hidden_size, eps=1e-6)
@@ -138,15 +137,15 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, hidden_size, inner_size, dropout_rate):
+    def __init__(self, hidden_size, inner_size, dropout_rate, head_num):
         super(DecoderLayer, self).__init__()
 
         self.self_attention_norm = nn.LayerNorm(hidden_size, eps=1e-6)
-        self.self_attention = MultiHeadAttention(hidden_size, dropout_rate)
+        self.self_attention = MultiHeadAttention(hidden_size, dropout_rate, head_num)
         self.self_attention_dropout = nn.Dropout(dropout_rate)
 
         self.enc_dec_attention_norm = nn.LayerNorm(hidden_size, eps=1e-6)
-        self.enc_dec_attention = MultiHeadAttention(hidden_size, dropout_rate)
+        self.enc_dec_attention = MultiHeadAttention(hidden_size, dropout_rate, head_num)
         self.enc_dec_attention_dropout = nn.Dropout(dropout_rate)
 
         self.ffn_norm = nn.LayerNorm(hidden_size, eps=1e-6)
@@ -175,10 +174,10 @@ class DecoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, hidden_size, inner_size, dropout_rate, n_layers):
+    def __init__(self, hidden_size, inner_size, dropout_rate, n_layers, head_num):
         super(Encoder, self).__init__()
 
-        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate)
+        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate, head_num)
                     for _ in range(n_layers)]
         self.layers = nn.ModuleList(encoders)
 
@@ -193,10 +192,10 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_size, inner_size, dropout_rate, n_layers):
+    def __init__(self, hidden_size, inner_size, dropout_rate, n_layers, head_num):
         super(Decoder, self).__init__()
 
-        decoders = [DecoderLayer(hidden_size, inner_size, dropout_rate)
+        decoders = [DecoderLayer(hidden_size, inner_size, dropout_rate, head_num)
                     for _ in range(n_layers)]
         self.layers = nn.ModuleList(decoders)
 
@@ -219,6 +218,7 @@ class Decoder(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, i_vocab_size, t_vocab_size,
                  n_layers=6,
+                 head_num=10,
                  hidden_size=512,
                  inner_size=2048,
                  dropout_rate=0.1,
@@ -230,6 +230,7 @@ class Transformer(nn.Module):
         :param i_vocab_size: int, the vocabulary size of the inputs
         :param t_vocab_size: int, the vocabulary size of the outputs (in this project, i_vocab_size = t_vocab_size)
         :param n_layers: int, the layer number of the transformer encoder and decoder
+        :param head_num: int, the head attention number of the transformer encoder and decoder
         :param hidden_size: int, d_model in the transformer
         :param inner_size: int, inner-layer dimensionality in the feed forward network
         :param dropout_rate: int, the dropout rate in the transformer
@@ -251,7 +252,7 @@ class Transformer(nn.Module):
                         std=hidden_size**-0.5)
         self.t_emb_dropout = nn.Dropout(dropout_rate)
         self.decoder = Decoder(hidden_size, inner_size,
-                               dropout_rate, n_layers)
+                               dropout_rate, n_layers, head_num)
 
         if has_inputs:
             if not share_target_embedding:
@@ -265,7 +266,7 @@ class Transformer(nn.Module):
             self.i_emb_dropout = nn.Dropout(dropout_rate)
 
             self.encoder = Encoder(hidden_size, inner_size,
-                                   dropout_rate, n_layers)
+                                   dropout_rate, n_layers, head_num)
 
         # For positional encoding
         num_timescales = self.hidden_size // 2
