@@ -5,13 +5,14 @@ import time
 import torch
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
-import torch.optim as optim
+from optimizer import LRScheduler
 
+from model import Glossification
 import utils
 
 
 def summarize_train(writer, global_step, last_time, model, opt,
-                    inputs, targets, optimizer, loss, pred, ans):
+                    inputs, programs, optimizer, loss, pred, ans):
     if opt.summary_grad:
         for name, param in model.named_parameters():
             if not param.requires_grad:
@@ -22,7 +23,7 @@ def summarize_train(writer, global_step, last_time, model, opt,
                               global_step)
 
     writer.add_scalar('input_stats/batch_size',
-                      targets.size(0), global_step)
+                      programs.size(0), global_step)
 
     if inputs is not None:
         writer.add_scalar('input_stats/input_length',
@@ -31,18 +32,18 @@ def summarize_train(writer, global_step, last_time, model, opt,
         writer.add_scalar('input_stats/inputs_nonpadding_frac',
                           i_nonpad.mean(), global_step)
 
-    writer.add_scalar('input_stats/target_length',
-                      targets.size(1), global_step)
-    t_nonpad = (targets != opt.trg_pad_idx).view(-1).type(torch.float32)
-    writer.add_scalar('input_stats/target_nonpadding_frac',
-                      t_nonpad.mean(), global_step)
+    writer.add_scalar('input_stats/program_length',
+                      programs.size(1), global_step)
+    p_nonpad = (programs != opt.pro_pad_idx).view(-1).type(torch.float32)
+    writer.add_scalar('input_stats/program_nonpadding_frac',
+                      p_nonpad.mean(), global_step)
 
     writer.add_scalar('optimizer/learning_rate',
                       optimizer.learning_rate(), global_step)
 
     writer.add_scalar('loss', loss.item(), global_step)
 
-    acc = utils.get_accuracy(pred, ans, opt.trg_pad_idx)
+    acc = utils.get_accuracy(pred, ans, opt.pro_pad_idx)
     writer.add_scalar('training/accuracy',
                       acc, global_step)
 
@@ -51,7 +52,7 @@ def summarize_train(writer, global_step, last_time, model, opt,
                       global_step)
 
 
-def train(train_data, model, opt, global_step, optimizer, t_vocab_size,
+def train(train_data, model, opt, global_step, optimizer, p_vocab_size,
           label_smoothing, writer):
     model.train()
     last_time = time.time()
@@ -62,20 +63,21 @@ def train(train_data, model, opt, global_step, optimizer, t_vocab_size,
             inputs = batch.src
 
         targets = batch.trg
-        pred = model(inputs, targets)  # [b, t_len, t_vocab_size]
+        programs = batch.pro
+        pred = model(inputs, targets, programs)  # [b, p_len, p_vocab_size]
 
-        pred = pred.view(-1, pred.size(-1))  # [b * t_len, t_vocab_size]
-        ans = targets.view(-1)  # [b * t_len]
+        pred = pred.view(-1, pred.size(-1))  # [b * p_len, p_vocab_size]
+        ans = programs.view(-1)  # [b * p_len]
 
-        loss = utils.get_loss(pred, ans, t_vocab_size,
-                              label_smoothing, opt.trg_pad_idx)
+        loss = utils.get_loss(pred, ans, p_vocab_size,
+                              label_smoothing, opt.pro_pad_idx)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         if global_step % 100 == 0:
             summarize_train(writer, global_step, last_time, model, opt,
-                            inputs, targets, optimizer, loss, pred, ans)
+                            inputs, programs, optimizer, loss, pred, ans)
             last_time = time.time()
 
         pbar.set_description('[Loss: {:.4f}]'.format(loss.item()))
@@ -88,7 +90,7 @@ def train(train_data, model, opt, global_step, optimizer, t_vocab_size,
     return global_step
 
 
-def validation(validation_data, model, global_step, t_vocab_size, val_writer,
+def validation(validation_data, model, global_step, p_vocab_size, val_writer,
                opt):
     model.eval()
     total_loss = 0.0
@@ -98,14 +100,15 @@ def validation(validation_data, model, global_step, t_vocab_size, val_writer,
         if opt.has_inputs:
             inputs = batch.src
         targets = batch.trg
+        programs = batch.pro
 
         with torch.no_grad():
-            pred = model(inputs, targets)
+            pred = model(inputs, targets, programs)
 
             pred = pred.view(-1, pred.size(-1))
-            ans = targets.view(-1)
-            loss = utils.get_loss(pred, ans, t_vocab_size, 0,
-                                  opt.trg_pad_idx)
+            ans = programs.view(-1)
+            loss = utils.get_loss(pred, ans, p_vocab_size, 0,
+                                  opt.pro_pad_idx)
         total_loss += loss.item() * len(batch)
         total_cnt += len(batch)
 
@@ -123,11 +126,11 @@ def main():
     parser.add_argument('--batch_size', type=int, default=4096)
     parser.add_argument('--max_length', type=int, default=20)
     parser.add_argument('--generator_encoder_n_layers', type=int, default=3)
-    parser.add_argument('--generator_decoder_n_layer', type=int, default=1)
-    parser.add_argument('--executor_encoder_n_layer', type=int, default=1)
+    parser.add_argument('--generator_decoder_n_layers', type=int, default=1)
+    parser.add_argument('--executor_encoder_n_layers', type=int, default=1)
     parser.add_argument('--head_number', type=int, default=10)
     parser.add_argument('--hidden_size', type=int, default=512)
-    parser.add_argument('--filter_size', type=int, default=2048)
+    parser.add_argument('--inner_size', type=int, default=2048)
     parser.add_argument('--val_every', type=int, default=5)
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--label_smoothing', type=float, default=0.1)
@@ -145,19 +148,13 @@ def main():
     if not os.path.exists(opt.data_dir):
         os.makedirs(opt.data_dir)
 
-    train_data, validation_data, i_vocab_size, t_vocab_size, opt = \
-        problem.prepare(opt.problem, opt.data_dir, opt.max_length,
-                        opt.batch_size, device, opt)
+    train_data, validation_data, i_vocab_size, t_vocab_size, p_vocab_size, opt = None, None, None, None, None, opt
     if i_vocab_size is not None:
         print("# of vocabs (input):", i_vocab_size)
     print("# of vocabs (target):", t_vocab_size)
+    print("# of vocabs (program):", p_vocab_size)
 
-    if opt.model == 'transformer':
-        from model.transformer import Transformer
-        model_fn = Transformer
-    elif opt.model == 'fast_transformer':
-        from model.fast_transformer import FastTransformer
-        model_fn = FastTransformer
+    model_fn = Glossification
 
     if os.path.exists(opt.output_dir + '/last/models/last_model.pt'):
         print("Load a checkpoint...")
@@ -165,15 +162,20 @@ def main():
         model, global_step = utils.load_checkpoint(last_model_path, device,
                                                    is_eval=False)
     else:
-        model = model_fn(i_vocab_size, t_vocab_size,
-                         n_layers=opt.n_layers,
-                         hidden_size=opt.hidden_size,
-                         filter_size=opt.filter_size,
-                         dropout_rate=opt.dropout,
-                         share_target_embedding=opt.share_target_embedding,
-                         has_inputs=opt.has_inputs,
+        model = model_fn(i_vocab_size,
+                         p_vocab_size,
+                         t_vocab_size,
                          src_pad_idx=opt.src_pad_idx,
-                         trg_pad_idx=opt.trg_pad_idx)
+                         trg_pad_idx=opt.trg_pad_idx,
+                         pro_pad_idx=opt.pro_pad_idx,
+                         head_num=opt.head_number,
+                         hidden_size=opt.hidden_size,
+                         inner_size=opt.inner_size,
+                         dropout_rate=opt.dropout,
+                         generator_encoder_n_layers=opt.generator_encoder_n_layers,
+                         generator_decoder_n_layers=opt.generator_decoder_n_layers,
+                         executor_encoder_n_layers=opt.executor_encoder_n_layers,
+                         share_target_embeddings=opt.share_target_embeddings)
         model = model.to(device=device)
         global_step = 0
 
@@ -184,7 +186,7 @@ def main():
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("# of parameters: {}".format(num_params))
 
-    optimizer = optim.Adam(
+    optimizer = LRScheduler(
         filter(lambda x: x.requires_grad, model.parameters()),
         opt.hidden_size, opt.warmup, step=global_step)
 
@@ -196,7 +198,7 @@ def main():
         print("Epoch", t_step)
         start_epoch_time = time.time()
         global_step = train(train_data, model, opt, global_step,
-                            optimizer, t_vocab_size, opt.label_smoothing,
+                            optimizer, p_vocab_size, opt.label_smoothing,
                             writer)
         print("Epoch Time: {:.2f} sec".format(time.time() - start_epoch_time))
 
@@ -204,7 +206,7 @@ def main():
             continue
 
         val_loss = validation(validation_data, model, global_step,
-                              t_vocab_size, val_writer, opt)
+                              p_vocab_size, val_writer, opt)
         utils.save_checkpoint(model, opt.output_dir + '/last/models',
                               global_step, val_loss < best_val_loss)
         best_val_loss = min(val_loss, best_val_loss)

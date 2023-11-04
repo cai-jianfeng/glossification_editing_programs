@@ -67,7 +67,7 @@ class MultiHeadAttention(nn.Module):
         :param q: Tensor(b, q_len, d_model), dtype = float
         :param k: Tensor(b, k_len, d_model), dtype = float
         :param v: Tensor(b, v_len, d_model), dtype = float
-        :param mask: Tensor(k_len, k_len), dtype = bool
+        :param mask: Tensor(q_len, k_len), dtype = bool
         :param cache: dict
         :return: Tensor(b, q_len, d_model)
         """
@@ -107,7 +107,7 @@ class MultiHeadAttention(nn.Module):
         x = self.output_layer(x)  # [b, q_len, d_model]
 
         assert x.size() == orig_q_size
-        return x
+        return x  # [b, q_len, d_model]
 
 
 class EncoderLayer(nn.Module):
