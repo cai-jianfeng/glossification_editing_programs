@@ -68,7 +68,7 @@ class MultiHeadAttention(nn.Module):
         :param q: Tensor(b, q_len, d_model), dtype = float
         :param k: Tensor(b, k_len, d_model), dtype = float
         :param v: Tensor(b, v_len, d_model), dtype = float
-        :param mask: Tensor(k_len,), dtype = bool
+        :param mask: Tensor(k_len, k_len), dtype = bool
         :param cache: dict
         :return: Tensor(b, q_len, d_model)
         """
