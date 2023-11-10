@@ -14,6 +14,20 @@ import torch
 import torch.nn.functional as F
 
 
+def execute(programs, targets):
+    # programs.shape = [b, p_len]
+    # targets.shape = [b, t_len]
+    mask = torch.zeros([programs.size(), targets.size()[1]], dtype=torch.uint8,
+                       device=targets.device)  # [b, p_len, t_len]
+    for i, program in enumerate(programs):  # [p_len,]
+        k = 0
+        for j, action in enumerate(program):
+            mask[i, j, k:] = 1
+            if "ADD" in action or "COPY" in action:
+                k = k + 1
+    return mask  # [b, p_len, t_len]
+
+
 def get_loss(pred, ans, vocab_size, label_smoothing, pad):
     """
     compute loss

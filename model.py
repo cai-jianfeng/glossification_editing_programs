@@ -268,15 +268,3 @@ class Glossification(nn.Module):
         # d_mask.shape = [b, p_len, t_len]
         outputs = self.edit_attn(inputs, targets, targets, d_mask)  # [b, p_len, d_model]
         return outputs  # [b, p_len, d_model]
-
-    def execute(self, programs, targets):
-        # programs.shape = [b, p_len]
-        # targets.shape = [b, t_len]
-        mask = torch.zeros([programs.size(), targets.size()[1]], dtype=torch.uint8, device=targets.device)  # [b, p_len, t_len]
-        for i, program in enumerate(programs):  # [p_len,]
-            k = 0
-            for j, action in enumerate(program):
-                mask[i, j, k:] = 1
-                if "ADD" in action or "COPY" in action:
-                    k = k + 1
-        return mask  # [b, p_len, t_len]
