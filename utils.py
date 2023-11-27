@@ -99,3 +99,9 @@ def create_trg_self_mask(target_len, device=None):
     t_self_mask = torch.triu(ones, diagonal=1).unsqueeze(0)  # [1, target_len, target_len]
 
     return t_self_mask  # [1, target_len, target_len]
+
+
+class Fraction:
+    def __init__(self, numerator, denominator):
+        self.numerartor = numerator
+        self.denominator = denominator

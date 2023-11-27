@@ -6,6 +6,7 @@
 @Author: caijianfeng
 """
 from torch.utils.data import Dataset
+# from torchtext.data import Dataset
 
 class CSL(Dataset):
     def __init__(self):
