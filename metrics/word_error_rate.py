@@ -18,10 +18,10 @@ def min_edit_distance(sentence1, sentence2):
     """
     if type(sentence1) is list:
         sentence1 = np.array(sentence1)
-    assert type(sentence2) is np.dtype, "the sentence1 must be the np.array or list"
+    assert type(sentence1) is np.ndarray, "the sentence1 must be the np.array or list"
     if type(sentence2) is list:
         sentence2 = np.array(sentence2)
-    assert type(sentence2) is np.dtype, "the sentence2 must be the np.array or list"
+    assert type(sentence2) is np.ndarray, "the sentence2 must be the np.array or list"
 
     len_sentence1 = sentence1.shape[0]
     len_sentence2 = sentence2.shape[0]
@@ -50,7 +50,7 @@ def min_edit_distance(sentence1, sentence2):
 
     # 最后结果，即最短编辑距离为 state[len_sentence1][len_sentence2]
     # print(state[len_sentence1][len_sentence2])
-    return state
+    return state, state[len_sentence1][len_sentence2]
 
 
 def word_error_rate(predicts, ground_truths):
@@ -65,7 +65,7 @@ def word_error_rate(predicts, ground_truths):
     wer_score = 0.0
     assert len(predicts) == len(ground_truths), "the number of predicts is must equal to the one of ground_truths"
     for predict, ground_truth in zip(predicts, ground_truths):
-        edit_distance = min_edit_distance(predict, ground_truth)
+        _, edit_distance = min_edit_distance(predict, ground_truth)
         wer_score += edit_distance / len(ground_truth)
     wer_score /= len(predicts)
     return wer_score
@@ -84,4 +84,4 @@ if __name__ == '__main__':
          'obeys', 'the', 'commands', 'of', 'the', 'party']
     ]
     wer_score = word_error_rate(predicts, ground_truths)
-    print(wer_score)
+    print("Word Error Rate: ", wer_score)
