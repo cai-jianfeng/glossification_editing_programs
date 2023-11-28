@@ -6,7 +6,6 @@
 @Author: caijianfeng
 """
 from collections import Counter
-# from utils import Fraction
 import math
 from itertools import tee
 
@@ -29,18 +28,31 @@ def bleu_score(predicts, references, weight=None):
 
     p_count = Counter()
     p_count_clip = Counter()
-    p_n = {}
+    # p_n = {}
     predict_lens, reference_lens = 0, 0
     for predict, reference in zip(predicts, references):  # compute the n-gram in each data
         for i, _ in enumerate(weight, start=1):  # compute the i-gram in the range of 1 \sim n
-            p_i_denominator, p_i_numerartor = modified_precision(predict, reference, i)  # compute the count_clip and count number in the i-gram
+            p_i_numerator, p_i_denominator = modified_precision(predict, reference, i)  # compute the count_clip and count number in the i-gram
             p_count[i] = p_count[i] + p_i_denominator
-            p_count_clip[i] = p_count_clip[i] + p_i_numerartor
+            p_count_clip[i] = p_count_clip[i] + p_i_numerator
+            # equal to the follow code:
+            # from nltk.translate.bleu_score import modified_precision
+            # p_i = modified_precision(reference, predict, i)
+            # p_count[i] = p_count[i] + p_i.denominator
+            # p_count_clip[i] = p_count_clip[i] + p_i.numerator
         predict_lens += len(predict)
         reference_lens += closest_reference_lens(len(predict), reference)
     bp = brevity_penalty(reference_lens, predict_lens)  # compute brevity penalty
-    p_n = [p_count_clip_i/p_count_i for p_count_i, p_count_clip_i in zip(p_count, p_count_clip)]
-    bleu = bp * math.exp(math.fsum([w * p_i for w, p_i in zip(weight, p_n)]))
+    if p_count_clip[1] == 0:
+        return 0
+    p_n = [p_count_clip_i/p_count_i for p_count_i, p_count_clip_i in zip(p_count.values(), p_count_clip.values())]
+    # equal to the follow code:
+    # from fractions import Fraction
+    # p_n = [
+    #     Fraction(p_count_clip[i], p_count[i], _normalize=False)
+    #     for i, _ in enumerate(weight, start=1)
+    # ]
+    bleu = bp * math.exp(math.fsum([w * math.log(p_i) for w, p_i in zip(weight, p_n)]))
     return bleu
 
 
@@ -53,12 +65,12 @@ def modified_precision(predict, reference, n):
     :param n: type: int
     :return: type -> (int, int)
     """
-    pre_n_gram_count = Counter(n_gram(predict, n))
+    pre_n_gram_count = Counter(n_gram(predict, n)) if len(predict) >= n else Counter()
     max_n_gram = {}
     for ref in reference:
-        ref_n_gram_count = Counter(n_gram(ref, n))
+        ref_n_gram_count = Counter(n_gram(ref, n)) if len(ref) >= n else Counter()
         for ng in pre_n_gram_count:
-            max_n_gram = max(max_n_gram.get(ng, 0), ref_n_gram_count[ng])
+            max_n_gram[ng] = max(max_n_gram.get(ng, 0), ref_n_gram_count[ng])
     clip_n_gram_count = {ng: min(count, max_n_gram[ng]) for ng, count in pre_n_gram_count.items()}
     numerator = sum(clip_n_gram_count.values())
     denominator = max(1, sum(pre_n_gram_count.values()))
