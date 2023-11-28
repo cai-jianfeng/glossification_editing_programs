@@ -17,8 +17,8 @@ def bleu_score(predicts, references, weight=None):
     :param predicts: the candidate, i.e. the prediction of the model -> type: list(list(str))
     :param references: the references, i.e. the ground-truth corresponding to the candidate -> type: list(list(list(str)))
                       list(str) according to a sentence;
-                      list(str) according to all ground-truth corresponding to a candidate;
-                      list(list(str)) according to the total ground-truth in the corpus level.
+                      list(list(str)) according to all ground-truth corresponding to a candidate;
+                      list(list(list(str))) according to the total ground-truth in the corpus level.
     :param weight: the average weight, which can also indict the n of the order of n-gram (default [0.25] * 4) -> type: list(float)
     :return: BLEU Score -> type: float
     """
