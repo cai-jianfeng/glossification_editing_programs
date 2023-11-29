@@ -102,15 +102,22 @@ def compress_trajectory(edit_program):
 
 if __name__ == '__main__':
     # 序列 A
-    sentence = np.array(["montag", "und", "dienstag", "wechselhaft", "hier", "und", "da", "zeigt", "sich", "aber", "auch", "die", "sonne"])
-    # 序列 B
-    gloss = np.array(["montag", "dienstag", "wechselhaft", "mal", "auch", "sonne"])
+    # sentence = np.array(["montag", "und", "dienstag", "wechselhaft", "hier", "und", "da", "zeigt", "sich", "aber", "auch", "die", "sonne"])
+    # # 序列 B
+    # gloss = np.array(["montag", "dienstag", "wechselhaft", "mal", "auch", "sonne"])
+    #
+    # state = min_edit_distance(sentence, gloss)
+    # # print(state)
+    #
+    # edit_program = min_edit_trajectory(state, sentence, gloss)
+    # print(edit_program)
+    #
+    # compress_edit_program = compress_trajectory(edit_program)
+    # print(compress_edit_program)
+    seq1 = np.array([1, 1, 2, 1, 1, 1, 1, 1])
+    seq2 = np.array([2, 1, 1, 1, 1, 1])
+    state = min_edit_distance(seq1, seq2)
+    print(state)
 
-    state = min_edit_distance(sentence, gloss)
-    # print(state)
-
-    edit_program = min_edit_trajectory(state, sentence, gloss)
+    edit_program = min_edit_trajectory(state, seq1, seq2)
     print(edit_program)
-
-    compress_edit_program = compress_trajectory(edit_program)
-    print(compress_edit_program)
