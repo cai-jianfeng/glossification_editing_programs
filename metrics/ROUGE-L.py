@@ -62,27 +62,67 @@ def longest_common_subsequence(sequence1, sequence2):
     return result
 
 
+def ROUGE_L(predict, reference):
+    """
+    X = reference, Y = predict
+    R_lcs = \dfrac{LCS(X, Y)}{m};
+    P_lcs = \dfrac{LCS(X, Y)}{n};
+    beta = P_lcs / R_lcs or 1;
+    F_lcs = \dfrac{(1 + \beta^2) * R_lcs * P_lcs}{R_lcs + \beta^2 * P_lcs}
+    :param predict: type: list / array
+    :param reference: type: list / array
+    :return: tuple(float, float, float)
+    """
+    _, lcs = longest_common_subsequence_length(predict, reference)
+    m, n = len(reference), len(predict)
+    R_lcs = lcs / m
+    P_lcs = lcs / n
+    beta = P_lcs / R_lcs
+    F_cls = (1 + beta ** 2) * R_lcs * P_lcs / (R_lcs + beta ** 2 * P_lcs)
+    return R_lcs, P_lcs, F_cls
+
+
+def ROUGE_L_multi_ref(predict, references):
+    R_lcs_max, P_lcs_max = 0, 0
+    for reference in references:
+        R_lcs, P_lcs, _ = ROUGE_L(predict, reference)
+        R_lcs_max = max(R_lcs_max, R_lcs)
+        P_lcs_max = max(P_lcs_max, P_lcs)
+    beta = P_lcs_max / R_lcs_max
+    F_lcs_multi = (1 + beta ** 2) * R_lcs_max * P_lcs_max / (R_lcs_max + beta ** 2 * P_lcs_max)
+    return R_lcs_max, P_lcs_max, F_lcs_multi
+
+
 if __name__ == '__main__':
+    # test LCS and LCS len
     # sequence1 = [1, 2, 10, 3, 22, 4, 5, 6, 34, 8]
     # sequence2 = [2, 0, 3, 4, 5, 6, 7, 8, 9]
     # state, max_subseq_len, max_subseq = longest_common_subsequence(sequence1, sequence2)
     # print(state)
     # print(max_subseq_len)
     # print(max_subseq)
-    ground_truth = ['It', 'is', 'a', 'guide', 'to', 'action', 'that',
-                    'ensures', 'that', 'the', 'military', 'will', 'forever',
-                    'heed', 'Party', 'commands']
-
-    predict = ['It', 'is', 'a', 'guide', 'to', 'action', 'which',
-               'ensures', 'that', 'the', 'military', 'always',
-               'obeys', 'the', 'commands', 'of', 'the', 'party']
-    state, max_subseq_len, max_subseq = longest_common_subsequence(predict, ground_truth)
-    print(state)
-    print(max_subseq_len)
-    print(max_subseq, ';', len(max_subseq))
+    # ground_truth = ['It', 'is', 'a', 'guide', 'to', 'action', 'that',
+    #                 'ensures', 'that', 'the', 'military', 'will', 'forever',
+    #                 'heed', 'Party', 'commands']
+    #
+    # predict = ['It', 'is', 'a', 'guide', 'to', 'action', 'which',
+    #            'ensures', 'that', 'the', 'military', 'always',
+    #            'obeys', 'the', 'commands', 'of', 'the', 'party']
+    # state, max_subseq_len, max_subseq = longest_common_subsequence(predict, ground_truth)
+    # print(state)
+    # print(max_subseq_len)
+    # print(max_subseq, ';', len(max_subseq))
     # seq1 = 'abcdefghijklmjnojp'
     # seq2 = 'abcdefihijkrstun'
     # state, max_subseq_len, max_subseq = longest_common_subsequence(seq1, seq2)
     # print(state)
     # print(max_subseq_len)
     # print(max_subseq, ';', len(max_subseq))
+
+    # test ROUGE-L
+    predict1 = ['police', 'kill', 'the', 'gunman']
+    predict2 = ['the', 'gunman', 'kill', 'people']
+    reference = ['police', 'killed', 'the', 'gunman']
+    rouge_l1 = ROUGE_L(predict1, reference)
+    rouge_l2 = ROUGE_L(predict2, reference)
+    print(rouge_l1, ';', rouge_l2)
