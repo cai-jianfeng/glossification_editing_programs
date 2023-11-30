@@ -26,7 +26,7 @@ def longest_common_subsequence_length(sequence1, sequence2):
             # 同时，state[i][j] 也可以舍弃 s^1_i 或者 s^2_j 回到上一状态 state[i-1][j] / state[i][j-1]
             state[i][j] = max([state[i][j], state[i - 1][j], state[i][j - 1]])
             '''
-            由于 state[i - 1][j - 1] <= state[i - 1][j]/state[i][j - 1]，所以不用比较 state[i - 1][j - 1]
+            由于 state[i - 1][j - 1] <= state[i - 1][j]/state[i][j - 1]，所以可以不用比较 state[i - 1][j - 1]
             只有当 state[i - 1][j - 1] == state[i - 1][j] & state[i][j - 1] 时，state[i][j] 才有可能 = state[i - 1][j - 1] + 1
             if sequence1[i - 1] == sequence2[j - 1]:
                 state[i][j] = state[i - 1][j - 1] + 1
@@ -48,6 +48,8 @@ def longest_common_subsequence(sequence1, sequence2):
         因此，当 state[i][j] 的左边 state[i][j-1] / 上面 state[i-1][j] 和其的值一致时，
         表示其不是由 state[i-1][j-1] 过渡而来，而是由 state[i][j-1] / state[i-1][j] 过渡而来；
         若都不一致，则表示其是由左上角 state[i-1][j-1] 过渡而来
+        简而言之，只有当 (i, j) 的左边 (i-1, j) 和上边 (i, j-1) 都与其不相等时，才回溯到其左上角 (i-1, j-1)；
+        否则，回溯到其左边(如果左边与其相等) 或 上边(如果上边与其相等)
         '''
         if state[len1][len2 - 1] == state[len1][len2]:
             len2 -= 1
@@ -83,6 +85,14 @@ def ROUGE_L(predict, reference):
 
 
 def ROUGE_L_multi_ref(predict, references):
+    """
+    R_{lcs-multi} = max_{j=1}^u\big(\dfrac{LCS(r_j,c)}{m_j}\big);
+    P_{lcs-multi} = max_{j=1}^u\big(\dfrac{LCS(r_j,c)}{n}\big);
+    F_{lcs-multi} = \dfrac{(1+\beta^2)R_{lcs-multi}P_{lcs-multi}}{R_{lcs-multi} + \beta^2P_{lcs-multi}}
+    :param predict: type: list / array
+    :param references: type: list(list) / array
+    :return: tuple(float, float, float)
+    """
     R_lcs_max, P_lcs_max = 0, 0
     for reference in references:
         R_lcs, P_lcs, _ = ROUGE_L(predict, reference)
@@ -125,4 +135,5 @@ if __name__ == '__main__':
     reference = ['police', 'killed', 'the', 'gunman']
     rouge_l1 = ROUGE_L(predict1, reference)
     rouge_l2 = ROUGE_L(predict2, reference)
+    # rouge_l1 = 3 / 4; rouge_l2 = 1 / 2
     print(rouge_l1, ';', rouge_l2)

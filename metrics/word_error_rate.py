@@ -26,7 +26,7 @@ def min_edit_distance(sentence1, sentence2):
     len_sentence1 = sentence1.shape[0]
     len_sentence2 = sentence2.shape[0]
 
-    # 状态矩阵: state[i][j] 表示由序列 A 的前 i 个组成的子序列 Ai 和序列 B 的前 j 个组成的子序列 Bi的最小编辑距离
+    # 状态矩阵: state[i][j] 表示由序列 A 的前 i 个组成的子序列 Ai 和序列 B 的前 j 个组成的子序列 Bi 的最小编辑距离
     state = np.zeros([len_sentence1 + 1, len_sentence2 + 1])
 
     # 初始化状态矩阵
