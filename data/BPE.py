@@ -27,7 +27,7 @@ def merge_vocab(pair, v_in):
     bigram = re.escape(' '.join(pair))
     # TODO: 但是我不了解为什么不直接使用下面的形式，好像不用将其转化也可以进行匹配
     # bigram = ' '.join(pair)
-    '''为了防止出现一下情况：
+    '''为了防止出现以下情况：
     word = 'lo w', pair = ('o', 'w'),
     如果使用 re.compile(bigram), 则会将 word 中的 'o w' 替换为 'ow', 这并不是我们想要的。
     因此，除了满足 bigram, 还必须满足前后有空白字符来说明其是一个 subword; 
