@@ -289,11 +289,18 @@ class Glossification(nn.Module):
         return outputs  # [b, p_len, d_model]
 
     def execute(self, targets, programs):
-        mask = torch.zeros_like(targets)
+        """
+        通过执行 programs 生成 editing casual attention 的 mask
+        :param targets: glosses -> shape = [b, t_len]
+        :param programs: min editing programs -> shape = [b, p_len]
+        :return: editing casual attention mask -> shape = [b, p_len, t_len]
+        """
+        mask = torch.zeros(programs.shape[0], programs.shape[1], targets.shape[1])
         for i, program in enumerate(programs):
             generator_pointer = 0
-            for edit in program:
-                if 'Add' in edit:
-                    mask[i][generator_pointer] = -1e-8
-                    generator_pointer += 1
+            for j, edit in enumerate(program):
+                if 'Add' or 'Copy' in edit:
+                    index = int(edit.split(' ')[1])
+                    mask[i][generator_pointer: generator_pointer + index] = -1e-8
+                    generator_pointer += index
         return mask
