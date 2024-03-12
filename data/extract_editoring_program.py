@@ -6,6 +6,7 @@
 @Author: caijianfeng
 """
 import numpy as np
+from tqdm import tqdm
 
 
 def min_edit_distance(sentence, gloss):
@@ -16,8 +17,10 @@ def min_edit_distance(sentence, gloss):
     2. 删除 Del，即删除 A 的任意位置的元素
     3. 替换 Sub，即将 A 的任意位置的元素替换为另一元素(注意，该代码实现中没有 替换)
     """
-    len_sentence = sentence.shape[0]
-    len_gloss = gloss.shape[0]
+    # len_sentence = sentence.shape[0]
+    # len_gloss = gloss.shape[0]
+    len_sentence = len(sentence)
+    len_gloss = len(gloss)
 
     # 状态矩阵: state[i][j] 表示由序列 A 的前 i 个组成的子序列 Ai 和序列 B 的前 j 个组成的子序列 Bi的最小编辑距离
     state = np.zeros([len_sentence + 1, len_gloss + 1])
@@ -31,13 +34,13 @@ def min_edit_distance(sentence, gloss):
     '''
     DP
     state[i][j] 可由 state[i-1][j] 和 state[i][j-1] 进行 +1 得来
-    或者由 state[i-1][j-1] 进行得来(注意，没有 Sub，所以没有不能由 state[i-1][j-1] +1 得到)
+    或者由 state[i-1][j-1] + 1 进行得来(注意，没有 Sub，所以没有不能由 state[i-1][j-1] +1 得到, 同时, Copy 也算一次编辑操作)
     '''
     for i in range(1, len_sentence + 1):
         for j in range(1, len_gloss + 1):
             state[i][j] = min(state[i - 1][j], state[i][j - 1]) + 1
             if sentence[i - 1] == gloss[j - 1]:
-                state[i][j] = min(state[i][j], state[i - 1][j - 1])
+                state[i][j] = min(state[i][j], state[i - 1][j - 1] + 1)
 
     # 最后结果，即最短编辑距离为 state[len_sentence][len_gloss]
     # print(state[len_sentence][len_gloss])
@@ -48,12 +51,15 @@ def min_edit_trajectory(state, sentence, gloss):
     """
     从后往前回溯确定 edit trajectory (Add 优先级 > Del)
     """
-    len_sentence = sentence.shape[0]
-    len_gloss = gloss.shape[0]
+    # len_sentence = sentence.shape[0]
+    # len_gloss = gloss.shape[0]
+    len_sentence = len(sentence)
+    len_gloss = len(gloss)
 
     edit_program = []
     i, j = len_sentence, len_gloss
     while i > 0 and j > 0:
+        # print(i, '; ', j)
         if state[i - 1][j] + 1 == state[i][j]:
             # edit_program.insert(0, "Del %d" % i)
             edit_program.insert(0, "Del")
@@ -61,7 +67,7 @@ def min_edit_trajectory(state, sentence, gloss):
         elif state[i][j - 1] + 1 == state[i][j]:
             edit_program.insert(0, "Add %s" % gloss[j - 1])
             j -= 1
-        elif state[i - 1][j - 1] == state[i][j]:
+        elif state[i - 1][j - 1] + 1 == state[i][j]:
             # edit_program.insert(0, "Copy %d" % i)
             edit_program.insert(0, "Copy")
             i -= 1
@@ -72,6 +78,7 @@ def min_edit_trajectory(state, sentence, gloss):
         i -= 1
     while j > 0:
         edit_program.insert(0, "Add %s" % gloss[j - 1])
+        j -= 1
 
     return edit_program
 
@@ -98,6 +105,18 @@ def compress_trajectory(edit_program):
             num = 0
     new_edit_program.append("Skip")
     return new_edit_program
+
+
+def min_edit_program_parallel(sentences, glosses):
+    edit_programs = []
+    for i, (sentence, gloss) in tqdm(enumerate(zip(sentences, glosses))):
+        # print(i, '; ', sentence, '; ', gloss)
+        state = min_edit_distance(sentence, gloss)
+        edit_program = min_edit_trajectory(state, sentence, gloss)
+        # print(edit_program)
+        compress_edit_program = compress_trajectory(edit_program)
+        edit_programs.append(compress_edit_program)
+    return edit_programs
 
 
 if __name__ == '__main__':
