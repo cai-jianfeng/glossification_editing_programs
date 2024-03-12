@@ -124,15 +124,17 @@ class EncoderLayer(nn.Module):
 
     def forward(self, x, mask):
         # multi-head attention
-        y = self.self_attention(x, x, x, mask)
+        y = self.self_attention_norm(x)
+        y = self.self_attention(y, y, y, mask)
         y = self.self_attention_dropout(y)
-        y = x + y
-        x = self.self_attention_norm(y)
+        x = x + y
+
         # feed forward network
-        y = self.ffn(x)
+        y = self.ffn_norm(x)
+        y = self.ffn(y)
         y = self.ffn_dropout(y)
-        y = x + y
-        x = self.ffn_norm(y)
+        x = x + y
+
         return x
 
 
@@ -154,22 +156,25 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x, enc_output, self_mask, i_mask, cache):
         # masked multi-head attention
-        y = self.self_attention(x, x, x, self_mask)
+        y = self.self_attention_norm(x)
+        y = self.self_attention(y, y, y, self_mask)
         y = self.self_attention_dropout(y)
-        y = x + y
-        x = self.self_attention_norm(y)
+        x = x + y
+
         # cross multi-head attention
         if enc_output is not None:
-            y = self.enc_dec_attention(x, enc_output, enc_output, i_mask,
+            y = self.enc_dec_attention_norm(x)
+            y = self.enc_dec_attention(y, enc_output, enc_output, i_mask,
                                        cache)
             y = self.enc_dec_attention_dropout(y)
-            y = x + y
-            x = self.enc_dec_attention_norm(y)
+            x = x + y
+
         # feed forward network
-        y = self.ffn(x)
+        y = self.ffn_norm(x)
+        y = self.ffn(y)
         y = self.ffn_dropout(y)
-        y = x + y
-        x = self.ffn_norm(y)
+        x = x + y
+
         return x
 
 
@@ -181,14 +186,14 @@ class Encoder(nn.Module):
                     for _ in range(n_layers)]
         self.layers = nn.ModuleList(encoders)
 
-        # self.last_norm = nn.LayerNorm(hidden_size, eps=1e-6)
+        self.last_norm = nn.LayerNorm(hidden_size, eps=1e-6)
 
     def forward(self, inputs, mask):
         encoder_output = inputs
         for enc_layer in self.layers:
             encoder_output = enc_layer(encoder_output, mask)
-        # return self.last_norm(encoder_output)
-        return encoder_output
+        return self.last_norm(encoder_output)
+        # return encoder_output
 
 
 class Decoder(nn.Module):
@@ -199,9 +204,10 @@ class Decoder(nn.Module):
                     for _ in range(n_layers)]
         self.layers = nn.ModuleList(decoders)
 
-        # self.last_norm = nn.LayerNorm(hidden_size, eps=1e-6)
+        self.last_norm = nn.LayerNorm(hidden_size, eps=1e-6)
 
     def forward(self, targets, enc_output, i_mask, t_self_mask, cache):
+
         decoder_output = targets
         for i, dec_layer in enumerate(self.layers):
             layer_cache = None
@@ -211,8 +217,8 @@ class Decoder(nn.Module):
                 layer_cache = cache[i]
             decoder_output = dec_layer(decoder_output, enc_output,
                                        t_self_mask, i_mask, layer_cache)
-        # return self.last_norm(decoder_output)
-        return decoder_output
+        return self.last_norm(decoder_output)
+        # return decoder_output
 
 
 class Transformer(nn.Module):
@@ -247,6 +253,7 @@ class Transformer(nn.Module):
         self.src_pad_idx = src_pad_idx
         self.trg_pad_idx = trg_pad_idx
 
+        # TODO: 将 t_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
         self.t_vocab_embedding = nn.Embedding(t_vocab_size, hidden_size)
         nn.init.normal_(self.t_vocab_embedding.weight, mean=0,
                         std=hidden_size**-0.5)
@@ -254,6 +261,7 @@ class Transformer(nn.Module):
         self.decoder = Decoder(hidden_size, inner_size,
                                dropout_rate, n_layers, head_num)
 
+        # TODO: 将 i_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
         if has_inputs:
             if not share_target_embedding:
                 self.i_vocab_embedding = nn.Embedding(i_vocab_size,
@@ -323,11 +331,16 @@ class Transformer(nn.Module):
         # decoder
         decoder_output = self.decoder(target_embedded, enc_output, i_mask,
                                       t_self_mask, cache)  # [b, t_len, d_model]
+
+        return decoder_output
+
+    def decode_origin(self, targets, enc_output, i_mask, t_self_mask, t_mask,
+                      cache=None):
+        decoder_output = self.decode(targets, enc_output, i_mask, t_self_mask, t_mask, cache)
         # linear
         # [b, t_len, d_model] * [d_model, t_vocab_size]
         output = torch.matmul(decoder_output,
                               self.t_vocab_embedding.weight.transpose(0, 1))  # [b, t_len, t_vocab_size]
-
         return output
 
     def get_position_encoding(self, x):

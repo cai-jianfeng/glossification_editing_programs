@@ -1,66 +1,66 @@
 # _*_ coding:utf-8 _*_
 """
-@Software: (已用已读)glossification
+@Software: (已读)glossification
 @FileName: model.py
-@Date: 2024/3/12 16:28
+@Date: 2023/11/1 19:25
 @Author: caijianfeng
 """
+import math
 
-from transformer import Encoder, Decoder, MultiHeadAttention
 import torch
 from torch import nn
 import torch.nn.functional as F
 
 import utils
-import math
+from transformer import EncoderLayer, DecoderLayer, MultiHeadAttention
+
+"""
+the architecture of the generator and executor, both of them form the model glossificaiton
+"""
 
 
 class Generator(nn.Module):
     def __init__(self,
                  i_vocab_size,
-                 t_vocab_size,
+                 p_vocab_size,
+                 src_pad_idx,
+                 trg_pad_idx,
                  head_num,
                  hidden_size=512,
                  inner_size=2048,
                  dropout_rate=0.1,
                  encoder_n_layers=3,
                  decoder_n_layers=1,
-                 src_pad_idx=None,
-                 trg_pad_idx=None,
                  share_target_embeddings=True):
         super(Generator, self).__init__()
+
         self.hidden_size = hidden_size
         self.emb_scale = hidden_size ** 0.5
         self.src_pad_idx = src_pad_idx
         self.trg_pad_idx = trg_pad_idx
 
-        # TODO: 将 t_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
-        self.i_vocab_embedding = nn.Embedding(i_vocab_size,
-                                              hidden_size)
-        nn.init.normal_(self.i_vocab_embedding.weight,
-                        mean=0,
-                        std=hidden_size ** -0.5)
-        self.i_emb_dropout = nn.Dropout(dropout_rate)
+        self.i_vocab_embedding = nn.Embedding(i_vocab_size, hidden_size)
         if not share_target_embeddings:
-            self.t_vocab_embedding = nn.Embedding(t_vocab_size,
-                                                  hidden_size)
+            self.p_vocab_embedding = nn.Embedding(p_vocab_size, hidden_size)
         else:
-            self.t_vocab_embedding = self.i_vocab_embedding
-        self.t_emb_dropout = nn.Dropout(dropout_rate)
+            self.p_vocab_embedding = self.i_vocab_embedding
+        self.i_emb_dropout = nn.Dropout(dropout_rate)
+        self.p_emb_dropout = nn.Dropout(dropout_rate)
 
-        self.encoder = Encoder(hidden_size=self.hidden_size,
-                               inner_size=inner_size,
-                               dropout_rate=dropout_rate,
-                               n_layers=encoder_n_layers,
-                               head_num=head_num)
-        self.decoder = Decoder(hidden_size=self.hidden_size,
-                               inner_size=inner_size,
-                               dropout_rate=dropout_rate,
-                               n_layers=decoder_n_layers,
-                               head_num=head_num)
+        # Generator Encoder
+        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate, head_num) for _ in range(encoder_n_layers)]
+        self.encoder = nn.ModuleList(encoders)
+        # Generator Decoder
+        decoders = [DecoderLayer(hidden_size, inner_size, dropout_rate, head_num) for _ in range(decoder_n_layers)]
+        self.decoder = nn.ModuleList(decoders)
 
-        # For positional encoding
-        self.position_embedding()
+        # position embedding
+        num_timescales = self.hidden_size // 2
+        max_timescale = 10000.0
+        min_timescale = 1.0
+        log_timescale_increment = (math.log(float(max_timescale) / float(min_timescale)) / max(num_timescales - 1, 1))
+        inv_timescales = min_timescale * torch.exp(torch.arange(num_timescales, dtype=torch.float32) * -log_timescale_increment)
+        self.register_buffer('inv_timescales', inv_timescales)
 
     def forward(self, inputs, programs):
         # inputs.shape = [b, i_len]
@@ -84,7 +84,8 @@ class Generator(nn.Module):
         input_embedded = self.i_emb_dropout(input_embedded)  # [b, i_len, d_model]
 
         encoder_output = input_embedded  # [b, i_len, d_model]
-        encoder_output = self.encoder(encoder_output, i_mask)  # [b, i_len, d_model]
+        for enc_layer in self.encoder:
+            encoder_output = enc_layer(encoder_output, i_mask)  # [b, i_len, d_model]
 
         return encoder_output  # [b, i_len, d_model]
 
@@ -104,38 +105,24 @@ class Generator(nn.Module):
 
         # decoder
         decoder_output = program_embedded  # [b, p_len, d_model]
-        decoder_output = self.decoder(decoder_output, enc_output, t_self_mask, i_mask)  # [b, p_len, d_model]
-        # TODO: editing casual attention
+        for dec_layer in self.decoder:
+            decoder_output = dec_layer(decoder_output, enc_output, t_self_mask, i_mask)  # [b, p_len, d_model]
         # linear
-        # [b, t_len, d_model] * [d_model, t_vocab_size]
-        output = torch.matmul(decoder_output,
-                              self.t_vocab_embedding.weight.transpose(0, 1))  # [b, t_len, t_vocab_size]
-        return output  # [b, p_len, d_model]
+        # [b, p_len, d_model] * [d_model, p_vocab_size]
+        # output = torch.matmul(decoder_output, self.p_vocab_embedding.weight.transpose(0, 1))  # [b, p_len, p_vocab_size]
 
-    def position_embedding(self):
-        num_timescales = self.hidden_size // 2
-        max_timescale = 10000.0
-        min_timescale = 1.0
-        log_timescale_increment = (
-                math.log(float(max_timescale) /
-                         float(min_timescale)) /
-                         max(num_timescales - 1, 1))
-        inv_timescales = min_timescale * torch.exp(
-            torch.arange(num_timescales, dtype=torch.float32) *
-            -log_timescale_increment)
-        self.register_buffer('inv_timescales', inv_timescales)
+        return decoder_output  # [b, p_len, d_model]
 
     def get_position_encoding(self, x):
         max_length = x.size()[1]  # i_len
-        position = torch.arange(max_length, dtype=torch.float32,
-                                device=x.device)  # [i_len,]
+        position = torch.arange(max_length, dtype=torch.float32, device=x.device)  # [i_len,]
         scaled_time = position.unsqueeze(1) * self.inv_timescales.unsqueeze(0)  # [i_len, d_model // 2]
-        signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)],
-                           dim=1)  # [i_len, d_model]
+        signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1)  # [i_len, d_model]
+
         # F.pad(·) 的第二个参数表示每个维度的 pad 数(一个维度占 2 个位置)
         # 例如：F.pad(signal, (1, 1, 2, 2)) 表示将 signal 的最后一维左右各 pad 1 个；倒数第二维左右各 pad 2 个
         signal = F.pad(signal, (0, self.hidden_size % 2, 0, 0))
-        signal = signal.view(1, max_length, self.hidden_size)  # [1, i_len, d_model]
+        signal = signal.view(1, max_length, self.hidden_size)
         return signal
 
     def editing_causal_attention(self, inputs, mask):
@@ -162,13 +149,16 @@ class Executor(nn.Module):
         self.t_emb_dropout = nn.Dropout(dropout_rate)
 
         # Executor Encoder
-        self.encoder = Encoder(hidden_size=self.hidden_size,
-                               inner_size=inner_size,
-                               dropout_rate=dropout_rate,
-                               n_layers=encoder_n_layers,
-                               head_num=head_num)
+        encoders = [EncoderLayer(hidden_size, inner_size, dropout_rate, head_num) for _ in range(encoder_n_layers)]
+        self.encoder = nn.ModuleList(encoders)
         # position embedding
-        self.position_embedding()
+        num_timescales = self.hidden_size // 2
+        max_timescale = 10000.0
+        min_timescale = 1.0
+        log_timescale_increment = (math.log(float(max_timescale) / float(min_timescale)) / max(num_timescales - 1, 1))
+        inv_timescales = min_timescale * torch.exp(
+            torch.arange(num_timescales, dtype=torch.float32) * -log_timescale_increment)
+        self.register_buffer('inv_timescales', inv_timescales)
 
     def forward(self, inputs):
         # inputs.shape = [b, t_len]
@@ -177,18 +167,20 @@ class Executor(nn.Module):
         enc_output = self.encode(inputs, i_mask)  # [b, t_len, d_model]
         return enc_output  # [b, t_len, d_model]
 
-    def position_embedding(self):
-        num_timescales = self.hidden_size // 2
-        max_timescale = 10000.0
-        min_timescale = 1.0
-        log_timescale_increment = (
-                math.log(float(max_timescale) /
-                         float(min_timescale)) /
-                         max(num_timescales - 1, 1))
-        inv_timescales = min_timescale * torch.exp(
-            torch.arange(num_timescales, dtype=torch.float32) *
-            -log_timescale_increment)
-        self.register_buffer('inv_timescales', inv_timescales)
+    def encode(self, inputs, i_mask):
+        # inputs.shape = [b, i_len]
+        input_embedded = self.i_vocab_embedding(inputs)  # [b, i_len, d_model]
+        # i_mask.squeeze(1).unsqueeze(-1) -> [b, i_len, 1]
+        input_embedded.masked_fill_(i_mask.squeeze(1).unsqueeze(-1), 0)  # [b, i_len, d_model]
+        input_embedded *= self.emb_scale  # [b, i_len, d_model]
+        input_embedded += self.get_position_encoding(inputs)  # [b, i_len, d_model]
+        input_embedded = self.i_emb_dropout(input_embedded)  # [b, i_len, d_model]
+
+        encoder_output = input_embedded  # [b, i_len, d_model]
+        for enc_layer in self.encoder:
+            encoder_output = enc_layer(encoder_output, i_mask)  # [b, i_len, d_model]
+
+        return encoder_output  # [b, i_len, d_model]
 
     def get_position_encoding(self, x):
         max_length = x.size()[1]  # i_len
@@ -201,20 +193,6 @@ class Executor(nn.Module):
         signal = F.pad(signal, (0, self.hidden_size % 2, 0, 0))
         signal = signal.view(1, max_length, self.hidden_size)
         return signal
-
-    def encode(self, inputs, i_mask):
-        # inputs.shape = [b, i_len]
-        input_embedded = self.i_vocab_embedding(inputs)  # [b, i_len, d_model]
-        # i_mask.squeeze(1).unsqueeze(-1) -> [b, i_len, 1]
-        input_embedded.masked_fill_(i_mask.squeeze(1).unsqueeze(-1), 0)  # [b, i_len, d_model]
-        input_embedded *= self.emb_scale  # [b, i_len, d_model]
-        input_embedded += self.get_position_encoding(inputs)  # [b, i_len, d_model]
-        input_embedded = self.i_emb_dropout(input_embedded)  # [b, i_len, d_model]
-
-        encoder_output = input_embedded  # [b, i_len, d_model]
-        encoder_output = self.encoder(encoder_output, i_mask)  # [b, i_len, d_model]
-
-        return encoder_output  # [b, i_len, d_model]
 
 
 class Glossification(nn.Module):
@@ -243,7 +221,7 @@ class Glossification(nn.Module):
         :param head_num: int, head number in the glossification
         :param hidden_size: int, d_model in the glossification
         :param inner_size: int, inner-layer dimensionality in the feed forward network
-        :param dropout_rate: float, the dropout rate in the glossification
+        :param dropout_rate: int, the dropout rate in the glossification
         :param generator_encoder_n_layers: int, the layer number of the generator encoder
         :param generator_decoder_n_layers: int, the layer number of the generator decoder
         :param executor_encoder_n_layers: int, the layer number of the executor encoder
@@ -252,14 +230,14 @@ class Glossification(nn.Module):
         super(Glossification, self).__init__()
         self.generator = Generator(i_vocab_size,
                                    p_vocab_size,
+                                   src_pad_idx,
+                                   trg_pad_idx,
                                    head_num,
                                    hidden_size,
                                    inner_size,
                                    dropout_rate,
                                    generator_encoder_n_layers,
                                    generator_decoder_n_layers,
-                                   src_pad_idx,
-                                   trg_pad_idx,
                                    share_target_embeddings)
         self.executor = Executor(t_vocab_size,
                                  pro_pad_idx,
