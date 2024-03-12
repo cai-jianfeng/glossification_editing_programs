@@ -271,7 +271,7 @@ class Glossification(nn.Module):
         # programs.shape = [b, p_len]
         gen_outputs = self.generator(inputs, programs)  # [b, p_len, d_model]
         exc_outputs = self.executor(targets)  # [b, t_len, d_model]
-        # TODO: parallel 生成 editing casual attention 的 mask
+        # TODO: parallel 生成 editing casual attention 的 mask: 目前解决方法是预先生成每个数据对应的 mask, 然后跟随 数据 一起读入
         d_mask = self.execute(targets, programs)  # [b, p_len, t_len]
         edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, d_mask)  # [b, p_len, d_model]
         outputs = self.linear(edit_outputs)
