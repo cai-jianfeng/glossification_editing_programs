@@ -7,6 +7,7 @@
 """
 import numpy as np
 
+
 def generate_editing_casual_mask(editing_programs, max_program_len, max_glosses_len):
     mask = np.zeros([len(editing_programs), max_program_len, max_glosses_len])
 
@@ -32,10 +33,12 @@ if __name__ == '__main__':
     # editing_programs = [data_line.replace('\n', '').split('; ') for data_line in data_lines]
     # the example in origin paper
     max_program_len, max_glosses_len = 14, 9
-    editing_programs = [['Add 1', 'Add 2', 'Add 3', 'DEL 5', 'DEL 5', 'Copy 1', 'DEL 5', 'DEL', 'Copy 1', 'Add 4', 'Add 5', 'Add 6', 'Add 7', 'SKIP']]
+    editing_programs = [
+        ['Add 1', 'Add 2', 'Add 3', 'DEL 5', 'DEL 5', 'Copy 1', 'DEL 5', 'DEL', 'Copy 1', 'Add 4', 'Add 5', 'Add 6',
+         'Add 7', 'SKIP']]
     assert len(editing_programs[0]) == max_program_len, f'the length of editing program is {len(editing_programs[0])}'
 
-    mask = editing_casual_mask(editing_programs,
-                               max_program_len,
-                               max_glosses_len)
+    mask = generate_editing_casual_mask(editing_programs,
+                                        max_program_len,
+                                        max_glosses_len)
     print(mask[0, :, :])
