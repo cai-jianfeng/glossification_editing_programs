@@ -105,12 +105,8 @@ class Generator(nn.Module):
         # decoder
         decoder_output = program_embedded  # [b, p_len, d_model]
         decoder_output = self.decoder(decoder_output, enc_output, t_self_mask, i_mask)  # [b, p_len, d_model]
-        # TODO: editing casual attention
-        # linear
-        # [b, t_len, d_model] * [d_model, t_vocab_size]
-        output = torch.matmul(decoder_output,
-                              self.t_vocab_embedding.weight.transpose(0, 1))  # [b, t_len, t_vocab_size]
-        return output  # [b, p_len, d_model]
+
+        return decoder_output
 
     def position_embedding(self):
         num_timescales = self.hidden_size // 2
@@ -137,10 +133,6 @@ class Generator(nn.Module):
         signal = F.pad(signal, (0, self.hidden_size % 2, 0, 0))
         signal = signal.view(1, max_length, self.hidden_size)  # [1, i_len, d_model]
         return signal
-
-    def editing_causal_attention(self, inputs, mask):
-        output = inputs * self.hidden_size
-        return output
 
 
 class Executor(nn.Module):
@@ -279,10 +271,15 @@ class Glossification(nn.Module):
         # programs.shape = [b, p_len]
         gen_outputs = self.generator(inputs, programs)  # [b, p_len, d_model]
         exc_outputs = self.executor(targets)  # [b, t_len, d_model]
-        d_mask = self.execute(inputs, programs)  # [b, p_len, t_len]
+        # TODO: parallel 生成 editing casual attention 的 mask
+        d_mask = self.execute(targets, programs)  # [b, p_len, t_len]
         edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, d_mask)  # [b, p_len, d_model]
         outputs = self.linear(edit_outputs)
-        return outputs
+        # linear
+        # [b, t_len, d_model] * [d_model, t_vocab_size]
+        output = torch.matmul(outputs,
+                              self.t_vocab_embedding.weight.transpose(0, 1))  # [b, t_len, t_vocab_size]
+        return output  # [b, t_len, t_vocab_size]
 
     def editing_causal_attention(self, inputs, targets, d_mask):
         # inputs.shape = [b, p_len, d_model]
@@ -290,3 +287,13 @@ class Glossification(nn.Module):
         # d_mask.shape = [b, p_len, t_len]
         outputs = self.edit_attn(inputs, targets, targets, d_mask)  # [b, p_len, d_model]
         return outputs  # [b, p_len, d_model]
+
+    def execute(self, targets, programs):
+        mask = torch.zeros_like(targets)
+        for i, program in enumerate(programs):
+            generator_pointer = 0
+            for edit in program:
+                if 'Add' in edit:
+                    mask[i][generator_pointer] = -1e-8
+                    generator_pointer += 1
+        return mask
