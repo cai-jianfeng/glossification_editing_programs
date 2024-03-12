@@ -27,16 +27,12 @@ def generate_editing_casual_mask(editing_programs, max_program_len, max_glosses_
 
 
 if __name__ == '__main__':
-    # data_file = 'CSL-Daily_preporcess.txt'  # the max length of editing program in CSL dataset is 42.
-    # with open(data_file, 'r', encoding='utf-8') as f:
-    #     data_lines = f.readlines()
-    # editing_programs = [data_line.replace('\n', '').split('; ') for data_line in data_lines]
     # the example in origin paper
     max_program_len, max_glosses_len = 14, 9
     editing_programs = [
         ['Add 1', 'Add 2', 'Add 3', 'DEL 5', 'DEL 5', 'Copy 1', 'DEL 5', 'DEL', 'Copy 1', 'Add 4', 'Add 5', 'Add 6',
-         'Add 7', 'SKIP']]
-    assert len(editing_programs[0]) == max_program_len, f'the length of editing program is {len(editing_programs[0])}'
+         'Add 7', 'Skip']]
+    # assert len(editing_programs[0]) == max_program_len, f'the length of editing program is {len(editing_programs[0])}'
 
     mask = generate_editing_casual_mask(editing_programs,
                                         max_program_len,

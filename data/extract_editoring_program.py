@@ -100,7 +100,10 @@ def compress_trajectory(edit_program):
             i = j
             num = 0
         else:
-            new_edit_program.append(edit_program[i])
+            if 'Add' in edit_program[i]:
+                new_edit_program.append(edit_program[i])
+            else:
+                new_edit_program.append(edit_program[i] + ' 1')
             i = j
             num = 0
     new_edit_program.append("Skip")
