@@ -299,7 +299,7 @@ class Transformer(nn.Module):
         t_mask = utils.create_pad_mask(targets, self.trg_pad_idx)  # [b, 1, t_len]
         target_size = targets.size()[1]  # t_len
         t_self_mask = utils.create_trg_self_mask(target_size,
-                                                 device=targets.device)  # [t_len, t_len]
+                                                 device=targets.device)  # [1, t_len, t_len]
         return self.decode(targets, enc_output, i_mask, t_self_mask, t_mask)
 
     def encode(self, inputs, i_mask):

@@ -320,3 +320,26 @@ class Glossification(nn.Module):
                     mask[i][generator_pointer: generator_pointer + index] = -1e-8
                     generator_pointer += index
         return mask
+
+
+if __name__ == '__main__':
+    i_vocab_size = 10
+    t_vocab_size = 10
+    p_vocab_size = 10
+    src_pad_idx = 9
+    trg_pad_idx = 9
+    pro_pad_idx = 9
+    head_num = 10
+    model = Glossification(i_vocab_size=i_vocab_size,
+                           p_vocab_size=p_vocab_size,
+                           t_vocab_size=t_vocab_size,
+                           src_pad_idx=src_pad_idx,
+                           trg_pad_idx=trg_pad_idx,
+                           pro_pad_idx=pro_pad_idx,
+                           head_num=head_num)
+    i_len, t_len, p_len = 10, 10, 10
+    batch_size = 5
+    inputs = torch.randn([batch_size, i_len])
+    target = torch.randn([batch_size, t_len])
+    program = torch.randn([batch_size, p_len])
+    editing_casual_mask = torch.triu(torch.ones([batch_size, p_len, t_len], dtype=torch.uint8), diagonal=1)
