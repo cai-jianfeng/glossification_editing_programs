@@ -207,7 +207,7 @@ class Decoder(nn.Module):
 
         self.last_norm = nn.LayerNorm(hidden_size, eps=1e-6)
 
-    def forward(self, targets, enc_output, i_mask, t_self_mask, cache):
+    def forward(self, targets, enc_output, i_mask, t_self_mask, cache=None):
 
         decoder_output = targets
         for i, dec_layer in enumerate(self.layers):
@@ -295,12 +295,15 @@ class Transformer(nn.Module):
         enc_output, i_mask = None, None
         if self.has_inputs:
             i_mask = utils.create_pad_mask(inputs, self.src_pad_idx)  # [b, 1, i_len]
+            # print('i_mask shape: ', i_mask.shape)
             enc_output = self.encode(inputs, i_mask)
 
         t_mask = utils.create_pad_mask(targets, self.trg_pad_idx)  # [b, 1, t_len]
+        # print('t_mask shape: ', t_mask.shape)
         target_size = targets.size()[1]  # t_len
         t_self_mask = utils.create_trg_self_mask(target_size,
                                                  device=targets.device)  # [1, t_len, t_len]
+        # print('t_self_mask shape: ', t_self_mask.shape)
         return self.decode_origin(targets, enc_output, i_mask, t_self_mask, t_mask)
 
     def encode(self, inputs, i_mask):
@@ -372,4 +375,4 @@ if __name__ == '__main__':
     inputs = torch.randint(0, i_vocab_size, [batch_size, i_len])
     target = torch.randint(0, t_vocab_size, [batch_size, t_len])
     output = model(inputs, target)
-    print(output.shape)  # [batch_size, t_len, t_vocab_size]
+    # print(output.shape)  # [batch_size, t_len, t_vocab_size]
