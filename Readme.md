@@ -5,8 +5,8 @@ This is the code implementation of the paper [Transcribing Natural Languages for
 ## List of the code files
 
 - [extract_editing_program.py](/data/extract_editoring_program.py): This is the implementation of the minimal editing program using **Dynamic Programming** and **Backtracking** algorithm.
-- [transformer.py](/transformer.py): This is the implementation of the **Transformer**, including MHA, FFN and so on.
-- [model.py](/model.py): This is the implementation of the *GECA*, including Generator, Executor and editing causal attention.
+- [transformer.py](/models/transformer.py): This is the implementation of the **Transformer**, including MHA, FFN and so on.
+- [model.py](/models/model.py): This is the implementation of the *GECA*, including Generator, Executor and editing causal attention.
 - [optimizer.py](/optimizer.py): This is the encapsulation of the **Adam** optimizer in order to easily use.
 - [utils.py](/utils.py): This is the useful utility code, including mask computation, loss computation and so on.
 - [train.py](/train.py): This is the main code used to implement **model training**, validation, logging, etc.

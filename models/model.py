@@ -1,8 +1,8 @@
 # _*_ coding:utf-8 _*_
 """
-@Software: (已用已读)glossification
+@Project Name: glossification
 @FileName: model.py
-@Date: 2024/3/12 16:28
+@Begin Date: 2024/3/12 16:28
 @Author: caijianfeng
 """
 
@@ -34,7 +34,7 @@ class Generator(nn.Module):
         self.src_pad_idx = src_pad_idx
         self.trg_pad_idx = trg_pad_idx
 
-        # TODO: 将 t_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
+        # TODO: 将 i_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
         self.i_vocab_embedding = nn.Embedding(i_vocab_size,
                                               hidden_size)
         nn.init.normal_(self.i_vocab_embedding.weight,
@@ -71,7 +71,7 @@ class Generator(nn.Module):
         # decoder
         p_mask = utils.create_pad_mask(programs, self.trg_pad_idx)  # [b, 1, p_len]
         program_size = programs.size()[1]  # p_len
-        p_self_mask = utils.create_trg_self_mask(program_size, device=programs.device)  # [p_len, p_len]
+        p_self_mask = utils.create_trg_self_mask(program_size, device=programs.device)  # [1, tp_len, p_len]
         dec_output = self.decode(programs, enc_output, i_mask, p_self_mask, p_mask)  # [b, p_len, d_model]
         return dec_output  # [b, p_len, d_model]
 
@@ -265,7 +265,7 @@ class Glossification(nn.Module):
                                             head_num)
         self.linear = nn.Linear(hidden_size, p_vocab_size)
 
-    def forward(self, inputs, targets, programs):
+    def forward_origin(self, inputs, targets, programs):
         # inputs.shape = [b, i_len]
         # targets.shape = [b, t_len]
         # programs.shape = [b, p_len]
@@ -276,10 +276,26 @@ class Glossification(nn.Module):
         edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, d_mask)  # [b, p_len, d_model]
         outputs = self.linear(edit_outputs)
         # linear
-        # [b, t_len, d_model] * [d_model, t_vocab_size]
+        # [b, p_len, d_model] * [d_model, p_vocab_size]
         output = torch.matmul(outputs,
-                              self.t_vocab_embedding.weight.transpose(0, 1))  # [b, t_len, t_vocab_size]
-        return output  # [b, t_len, t_vocab_size]
+                              self.generator.t_vocab_embedding.weight.transpose(0, 1))  # [b, p_len, p_vocab_size]
+        return output  # [b, p_len, p_vocab_size]
+
+    def forward(self, inputs, targets, programs, editing_casual_mask):
+        # inputs.shape = [b, i_len]
+        # targets.shape = [b, t_len]
+        # programs.shape = [b, p_len]
+        gen_outputs = self.generator(inputs, programs)  # [b, p_len, d_model]
+        exc_outputs = self.executor(targets)  # [b, t_len, d_model]
+        edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, editing_casual_mask)  # [b, p_len, d_model]
+        # 原论文是在 editing casual attention 之后添加一个 linear 层将输出映射到 p_vocab_size 维度
+        # 这里使用推荐的与目标输出的 embedding table 相乘将输出映射到 p_vocab_size 维度, 无需添加 softmax !
+        # edit_outputs = self.linear(edit_outputs)  # [b, p_len, p_vocab_size]
+        # linear
+        # [b, p_len, d_model] * [d_model, p_vocab_size]
+        output = torch.matmul(edit_outputs,
+                              self.generator.t_vocab_embedding.weight.transpose(0, 1))  # [b, p_len, p_vocab_size]
+        return output  # [b, p_len, p_vocab_size]
 
     def editing_causal_attention(self, inputs, targets, d_mask):
         # inputs.shape = [b, p_len, d_model]

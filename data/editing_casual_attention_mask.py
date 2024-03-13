@@ -20,7 +20,7 @@ def generate_editing_casual_mask(editing_programs, max_program_len, max_glosses_
     :param editing_programs: type: list(list(str)) 一个小批量(mini batch) 的 editing program
     :param max_program_len: type: int 数据集中最长的 editing program 的长度
     :param max_glosses_len: type: int 数据集中最长的 gloss 的长度
-    :return: editing casual mask: type: np.array(shape = [batch, max_program_len, max_glosses_len])
+    :return: editing casual mask: type: np.array(shape = [batch, max_program_len, max_glosses_len], dtype = bool)
                                   给定小批量数据对应的 editing casual mask
     """
     mask = np.zeros([len(editing_programs), max_program_len, max_glosses_len])
@@ -30,14 +30,14 @@ def generate_editing_casual_mask(editing_programs, max_program_len, max_glosses_
         for j, edit in enumerate(editing_program):
             if 'Copy' in edit:
                 repeat_num = int(edit.split(' ')[1])
-                mask[i, j, index + repeat_num:] = -1e-8
+                mask[i, j, index + repeat_num:] = 1
                 index += repeat_num
             elif 'Add' in edit:
-                mask[i, j, index + 1:] = -1e-8
+                mask[i, j, index + 1:] = 1
                 index += 1
             else:
-                mask[i, j, index:] = -1e-8
-    return mask
+                mask[i, j, index:] = 1
+    return mask == 1
 
 
 if __name__ == '__main__':

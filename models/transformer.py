@@ -1,8 +1,8 @@
 # _*_ coding:utf-8 _*_
 """
-@Software: (已读)glossification
+@Project Name: glossification
 @FileName: transformer.py
-@Date: 2023/11/2 16:31
+@Begin Date: 2023/11/2 16:31
 @Author: caijianfeng
 """
 

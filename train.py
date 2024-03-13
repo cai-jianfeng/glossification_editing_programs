@@ -7,7 +7,7 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from optimizer import LRScheduler
 
-from model import Glossification
+from models.model import Glossification
 import utils
 
 
