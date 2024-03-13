@@ -77,23 +77,28 @@ def min_edit_trajectory(state, sentence, gloss):
     while i > 0 and j > 0:
         # print(i, '; ', j)
         if state[i][j - 1] + 1 == state[i][j]:
-            edit_program.insert(0, "Add %s" % gloss[j - 1])
+            # edit_program.insert(0, "Add %s" % gloss[j - 1])
+            edit_program.insert(0, "添加 %s" % gloss[j - 1])
             j -= 1
         elif state[i - 1][j] + 1 == state[i][j]:
             # edit_program.insert(0, "Del %d" % i)
-            edit_program.insert(0, "Del")
+            # edit_program.insert(0, "Del")
+            edit_program.insert(0, "删除")
             i -= 1
         elif state[i - 1][j - 1] + 1 == state[i][j]:
             # edit_program.insert(0, "Copy %d" % i)
-            edit_program.insert(0, "Copy")
+            # edit_program.insert(0, "Copy")
+            edit_program.insert(0, "复制")
             i -= 1
             j -= 1
     while i > 0:
         # edit_program.insert(0, "Del %d" % i)
-        edit_program.insert(0, "Del")
+        # edit_program.insert(0, "Del")
+        edit_program.insert(0, "删除")
         i -= 1
     while j > 0:
-        edit_program.insert(0, "Add %s" % gloss[j - 1])
+        # edit_program.insert(0, "Add %s" % gloss[j - 1])
+        edit_program.insert(0, "添加 %s" % gloss[j - 1])
         j -= 1
 
     return edit_program
@@ -114,7 +119,8 @@ def compress_trajectory(edit_program):
             if num > 1:
                 new_edit_program.append(edit_program[i] + " %d" % num)
             else:
-                if 'Add' in edit_program[i]:
+                # if 'Add' in edit_program[i]:
+                if '添加' in edit_program[i]:
                     new_edit_program.append(edit_program[i])
                 else:
                     new_edit_program.append(edit_program[i] + ' 1')
@@ -127,16 +133,19 @@ def compress_trajectory(edit_program):
             i = j
             num = 0
         else:
-            if 'Add' in edit_program[i]:
+            # if 'Add' in edit_program[i]:
+            if '添加' in edit_program[i]:
                 new_edit_program.append(edit_program[i])
             else:
                 new_edit_program.append(edit_program[i] + ' 1')
             i = j
             num = 0
     # 如果最后一个编辑操作是删除, 则可以直接省略, 使用 Skip 结束
-    if 'Del' in new_edit_program[-1]:
+    # if 'Del' in new_edit_program[-1]:
+    if '删除' in new_edit_program[-1]:
         new_edit_program.pop()
-    new_edit_program.append("Skip")
+    # new_edit_program.append("Skip")
+    new_edit_program.append("跳过")
     return new_edit_program
 
 
@@ -181,6 +190,7 @@ if __name__ == '__main__':
     # edit_program = min_edit_trajectory(state, seq1, seq2)
     # print(edit_program)
 
-    seq1 = ['Copy', 'Copy', 'Copy', 'Copy', 'Add love', 'Del', 'Del', 'Del', 'Add you']
+    # seq1 = ['Copy', 'Copy', 'Copy', 'Copy', 'Add love', 'Del', 'Del', 'Del', 'Add you']
+    seq1 = ['复制', '复制', '复制', '复制', '添加 你', '删除', '删除', '删除', '添加 好']
     seq = compress_trajectory(seq1)
     print(seq)
