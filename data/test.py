@@ -5,31 +5,28 @@
 @Begin Date: 2023/12/2 11:10
 @Author: caijianfeng
 """
-import numpy as np
-from extract_editoring_program import min_edit_distance, min_edit_trajectory, compress_trajectory, min_edit_program_parallel
+from utils import set_proxy
 
-data_file_name = 'CSL-Daily.txt'
+set_proxy()
 
-with open(data_file_name, 'r', encoding='utf-8') as file:
-    data_lines = file.readlines()
+from dataset import CSL_Dataset
 
-# data_lines_gloss = np.array([[c for c in data_line.split('|')[3].replace(' ', '')] for data_line in data_lines])
-data_lines_gloss = [[c for c in data_line.split('|')[3].replace(' ', '')] for data_line in data_lines][1:]
-# data_lines_sentence = np.array([[c for c in data_line.split('|')[4].replace(' ', '')] for data_line in data_lines])
-data_lines_sentence = [[c for c in data_line.split('|')[4].replace(' ', '')] for data_line in data_lines][1:]
+dataset_file = './CSL-Daily_editing_chinese.txt'
+editing_casual_mask_file = './editing_casual_mask_CSL_50_40.npy'
+tokenizer_name = "bert-base-chinese"
 
-index = 16
-print(data_lines_sentence[index], '; ', data_lines_gloss[index])
+CSL_dataset = CSL_Dataset(dataset_file=dataset_file,
+                          editing_casual_mask_file=editing_casual_mask_file,
+                          pre_trained_tokenizer=True,
+                          tokenizer_name=tokenizer_name)
 
-edit_state = min_edit_distance(sentence=data_lines_sentence[index],
-                               gloss=data_lines_gloss[index])
-print(edit_state)
+test_data = CSL_dataset[0][0]
+print(test_data)
 
-edit_trajectory = min_edit_trajectory(state=edit_state,
-                                      sentence=data_lines_sentence[index],
-                                      gloss=data_lines_gloss[index])
-print(edit_trajectory)
-
-compress_edit_trajectory = compress_trajectory(edit_program=edit_trajectory)
-
-print(compress_edit_trajectory)
+origin_data = CSL_dataset.decode([test_data])
+print(origin_data)
+# input_text = ["谢谢你！", "不客气！"]
+# outputs = CSL_dataset.tokenizer.encode_batch(input_text)
+# outputs_ids = [output.ids for output in outputs]
+# decode_outputs = CSL_dataset.decode(outputs_ids)
+# print(decode_outputs)

@@ -100,6 +100,10 @@ def create_trg_self_mask(target_len, device=None):
 
     return t_self_mask == 1  # [1, target_len, target_len]
 
+def set_proxy(port=10809):
+    import os
+    os.environ['http_proxy'] = f'http://127.0.0.1:{port}'
+    os.environ['https_proxy'] = f'http://127.0.0.1:{port}'
 
 class Fraction:
     def __init__(self, numerator, denominator):
