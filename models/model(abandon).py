@@ -1,8 +1,9 @@
 # _*_ coding:utf-8 _*_
 """
-@Software: (已读)glossification
+@Project Name: glossification
 @FileName: model.py
-@Date: 2023/11/1 19:25
+@Begin Date: 2023/11/1 19:25
+@End Date: 2024/03/12 0:00
 @Author: caijianfeng
 """
 import math

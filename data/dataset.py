@@ -1,8 +1,8 @@
 # _*_ coding:utf-8 _*_
 """
-@Software: (已读)glossification
+@Project Name: glossification
 @FileName: dataset.py
-@Date: 2023/11/10 20:29
+@Begin Date: 2023/11/10 20:29
 @Author: caijianfeng
 """
 from torch.utils.data import Dataset
