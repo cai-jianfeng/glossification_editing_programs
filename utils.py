@@ -98,7 +98,7 @@ def create_trg_self_mask(target_len, device=None):
     # torch.triu(·): 以 diagonal 为对角线返回上三角矩阵
     t_self_mask = torch.triu(ones, diagonal=1).unsqueeze(0)  # [1, target_len, target_len]
 
-    return t_self_mask  # [1, target_len, target_len]
+    return t_self_mask == 1  # [1, target_len, target_len]
 
 
 class Fraction:

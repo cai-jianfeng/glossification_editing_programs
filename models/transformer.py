@@ -58,7 +58,8 @@ class MultiHeadAttention(nn.Module):
 
         self.att_dropout = nn.Dropout(dropout_rate)
 
-        self.output_layer = nn.Linear(head_num * att_size, hidden_size, bias=False)
+        self.output_layer = nn.Linear(head_num * att_size,
+                                      hidden_size, bias=False)
         initialize_weight(self.output_layer)
 
     def forward(self, q, k, v, mask=None, cache=None):
@@ -96,7 +97,7 @@ class MultiHeadAttention(nn.Module):
         # Attention(Q, K, V) = softmax((QK^T)/sqrt(d_k))V
         q.mul_(self.scale)
         x = torch.matmul(q, k)  # [b, h, q_len, k_len]
-        x.masked_fill_(mask, -1e9)
+        x.masked_fill_(mask.unsqueeze(1), -1e9)
         x = torch.softmax(x, dim=3)  # softmax in k_len
         x = self.att_dropout(x)
         x = x.matmul(v)  # [b, h, q_len, k_len] * [b, h, v_len, d_v] -> [b, h, q_len, attn(d_v)]  (k_len = v_len)
@@ -300,7 +301,7 @@ class Transformer(nn.Module):
         target_size = targets.size()[1]  # t_len
         t_self_mask = utils.create_trg_self_mask(target_size,
                                                  device=targets.device)  # [1, t_len, t_len]
-        return self.decode(targets, enc_output, i_mask, t_self_mask, t_mask)
+        return self.decode_origin(targets, enc_output, i_mask, t_self_mask, t_mask)
 
     def encode(self, inputs, i_mask):
         # Input embedding
@@ -355,3 +356,20 @@ class Transformer(nn.Module):
         signal = F.pad(signal, (0, self.hidden_size % 2, 0, 0))
         signal = signal.view(1, max_length, self.hidden_size)  # [1, i_len, d_model]
         return signal
+
+
+if __name__ == '__main__':
+    i_vocab_size = 100
+    t_vocab_size = 200
+    src_pad_idx = 99
+    trg_pad_idx = 199
+    model = Transformer(i_vocab_size=i_vocab_size,
+                        t_vocab_size=t_vocab_size,
+                        src_pad_idx=src_pad_idx,
+                        trg_pad_idx=trg_pad_idx)
+    i_len, t_len = 10, 20
+    batch_size = 5
+    inputs = torch.randint(0, i_vocab_size, [batch_size, i_len])
+    target = torch.randint(0, t_vocab_size, [batch_size, t_len])
+    output = model(inputs, target)
+    print(output.shape)  # [batch_size, t_len, t_vocab_size]
