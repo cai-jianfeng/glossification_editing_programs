@@ -28,7 +28,7 @@ data_preprocess_file_name = 'CSL-Daily_preporcess.txt'
 with open(data_preprocess_file_name, 'w', encoding='utf-8') as f:
     f.writelines(compress_edit_trajectorys_lines)
 
-editing_casual_mask_file = 'editing_casual_mask_CSL_50_40.npy'
+editing_casual_mask_file = 'editing_casual_mask_CSL_50_40.npy'  # 命名规则: editing_casual_mask + _数据集名称 + _max editing program length + _max gloss length
 max_program_len, max_glosses_len = 50, 40  # the max length of editing program and glosses in CSL dataset are 42 and 38.
 
 editing_casual_mask = generate_editing_casual_mask(editing_programs=compress_edit_trajectorys,
