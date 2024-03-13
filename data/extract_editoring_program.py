@@ -133,6 +133,9 @@ def compress_trajectory(edit_program):
                 new_edit_program.append(edit_program[i] + ' 1')
             i = j
             num = 0
+    # 如果最后一个编辑操作是删除, 则可以直接省略, 使用 Skip 结束
+    if 'Del' in new_edit_program[-1]:
+        new_edit_program.pop()
     new_edit_program.append("Skip")
     return new_edit_program
 
@@ -178,6 +181,6 @@ if __name__ == '__main__':
     # edit_program = min_edit_trajectory(state, seq1, seq2)
     # print(edit_program)
 
-    seq1 = ['Copy', 'Copy', 'Copy', 'Copy', 'Add love', 'Del', 'Del', 'Del']
+    seq1 = ['Copy', 'Copy', 'Copy', 'Copy', 'Add love', 'Del', 'Del', 'Del', 'Add you']
     seq = compress_trajectory(seq1)
     print(seq)
