@@ -109,8 +109,17 @@ def compress_trajectory(edit_program):
     i, j = 0, 0
     new_edit_program = []
     num = 0
-    while i < length and j < length:
-        if edit_program[i] == edit_program[j]:
+    while i < length and j <= length:
+        if j >= length:
+            if num > 1:
+                new_edit_program.append(edit_program[i] + " %d" % num)
+            else:
+                if 'Add' in edit_program[i]:
+                    new_edit_program.append(edit_program[i])
+                else:
+                    new_edit_program.append(edit_program[i] + ' 1')
+            break
+        elif edit_program[i] == edit_program[j]:
             num += 1
             j += 1
         elif num > 1:
@@ -161,10 +170,14 @@ if __name__ == '__main__':
     #
     # compress_edit_program = compress_trajectory(edit_program)
     # print(compress_edit_program)
-    seq1 = np.array([1, 1, 2, 1, 1, 1, 1, 1])
-    seq2 = np.array([2, 1, 1, 1, 1, 1])
-    state = min_edit_distance(seq1, seq2)
-    print(state)
+    # seq1 = np.array([1, 1, 2, 1, 1, 1, 1, 1])
+    # seq2 = np.array([2, 1, 1, 1, 1, 1])
+    # state = min_edit_distance(seq1, seq2)
+    # print(state)
 
-    edit_program = min_edit_trajectory(state, seq1, seq2)
-    print(edit_program)
+    # edit_program = min_edit_trajectory(state, seq1, seq2)
+    # print(edit_program)
+
+    seq1 = ['Copy', 'Copy', 'Copy', 'Copy', 'Add love', 'Del', 'Del', 'Del']
+    seq = compress_trajectory(seq1)
+    print(seq)
