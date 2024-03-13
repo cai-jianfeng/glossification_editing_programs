@@ -2,7 +2,8 @@
 """
 @Project Name: glossification
 @FileName: editing_casual_attention_mask.py
-@Date: 2024/3/12 19:19
+@Begin Date: 2024/3/12 19:19
+@End Date: 2024/3/13 9:55
 @Author: caijianfeng
 """
 import numpy as np

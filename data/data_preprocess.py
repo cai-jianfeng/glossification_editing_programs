@@ -1,8 +1,9 @@
 # _*_ coding:utf-8 _*_
 """
-@Software: (已用已读)glossification
+@Project Name: glossification
 @FileName: data_preprocess.py
-@Date: 2024/3/12 10:40
+@Begin Date: 2024/3/12 10:40
+@End Date: 2024/3/13 9:54
 @Author: caijianfeng
 """
 import numpy as np
