@@ -27,14 +27,15 @@ class Generator(nn.Module):
                  decoder_n_layers=1,
                  src_pad_idx=None,
                  pro_pad_idx=None,
-                 share_target_embeddings=False):
+                 share_target_embeddings=False,
+                 use_pre_trained_embedding=False,
+                 pre_trained_embedding=None):
         super(Generator, self).__init__()
         self.hidden_size = hidden_size
         self.emb_scale = hidden_size ** 0.5
         self.src_pad_idx = src_pad_idx
         self.pro_pad_idx = pro_pad_idx
 
-        # # TODO: 将 i_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
         # self.i_vocab_embedding = nn.Embedding(i_vocab_size,
         #                                       hidden_size)
         # nn.init.normal_(self.i_vocab_embedding.weight,
@@ -47,19 +48,27 @@ class Generator(nn.Module):
         # else:
         #     self.p_vocab_embedding = self.i_vocab_embedding
         # self.p_emb_dropout = nn.Dropout(dropout_rate)
-        # TODO: 将 t_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
-        self.p_vocab_embedding = nn.Embedding(p_vocab_size, hidden_size)
-        nn.init.normal_(self.p_vocab_embedding.weight, mean=0,
-                        std=hidden_size ** -0.5)
-        self.p_emb_dropout = nn.Dropout(dropout_rate)
-
-        # TODO: 将 i_vocab_embedding 转化为 Fasttext.zip 中已经训练好的 embedding
-        self.i_vocab_embedding = nn.Embedding(i_vocab_size,
-                                              hidden_size)
-        nn.init.normal_(self.i_vocab_embedding.weight, mean=0,
-                        std=hidden_size ** -0.5)
+        if use_pre_trained_embedding:
+            assert pre_trained_embedding, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
+            assert pre_trained_embedding.weight.shape == torch.Size([i_vocab_size, hidden_size]),  'If use_pre_trained_embedding is True, you muse offer the special i_vocab_size and hidden_size which are same as pre_trained_embedding !'
+            self.i_vocab_embedding = pre_trained_embedding
+        else:
+            self.i_vocab_embedding = nn.Embedding(i_vocab_size,
+                                                  hidden_size)
+            nn.init.normal_(self.i_vocab_embedding.weight, mean=0,
+                            std=hidden_size ** -0.5)
 
         self.i_emb_dropout = nn.Dropout(dropout_rate)
+
+        if share_target_embeddings:
+            self.pro_pad_idx = self.src_pad_idx
+            self.p_vocab_embedding = self.i_vocab_embedding
+        else:
+            self.p_vocab_embedding = nn.Embedding(p_vocab_size, hidden_size)
+            nn.init.normal_(self.p_vocab_embedding.weight, mean=0,
+                            std=hidden_size ** -0.5)
+
+        self.p_emb_dropout = nn.Dropout(dropout_rate)
 
         self.encoder = Encoder(hidden_size=self.hidden_size,
                                inner_size=inner_size,
