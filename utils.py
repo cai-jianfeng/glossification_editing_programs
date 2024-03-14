@@ -1,8 +1,9 @@
 # _*_ coding:utf-8 _*_
 """
-@Software: (已读)glossification
+@Project Name: glossification
 @FileName: utils.py
-@Date: 2023/11/3 8:23
+@Begin Date: 2023/11/3 8:23
+@End Date:
 @Author: caijianfeng
 """
 

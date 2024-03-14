@@ -1,3 +1,12 @@
+# _*_ coding:utf-8 _*_
+"""
+@Project Name: glossification
+@FileName: train.py
+@Begin Date: 2024/3/14 11:20
+@End Date:
+@Author: caijianfeng
+"""
+
 import torch.optim as optim
 
 
