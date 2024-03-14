@@ -89,10 +89,18 @@ class CSL_Dataset(Dataset):
         """
         return self.tokenizer.get_vocab_size()
 
+    def get_token_id(self, token):
+        """
+        给定 token, 获得当前数据集使用的 tokenizer 的 token id
+        :param token: type: str -> 给定的 token
+        :return: token id: type: int or None -> 其中 None 表示 tokenizer 的 vocab 中没有该 token
+        """
+        return self.tokenizer.token_to_id(token)
+
     def get_pad_id(self, pad_token='[PAD]'):
         """
         获得当前数据集使用的 tokenizer 的 pad token id
         :param pad_token: type: str -> tokenizer 使用的 pad 的符号, 默认为 [PAD]
         :return: pad token id: type: int
         """
-        return self.tokenizer.token_to_id(pad_token)
+        return self.get_token_id(pad_token)

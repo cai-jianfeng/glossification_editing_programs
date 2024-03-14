@@ -6,10 +6,9 @@
 @Author: caijianfeng
 """
 from utils import set_proxy
+from dataset import CSL_Dataset
 
 set_proxy()
-
-from dataset import CSL_Dataset
 
 dataset_file = './CSL-Daily_editing_chinese.txt'
 editing_casual_mask_file = './editing_casual_mask_CSL_50_40.npy'
@@ -20,13 +19,14 @@ CSL_dataset = CSL_Dataset(dataset_file=dataset_file,
                           pre_trained_tokenizer=True,
                           tokenizer_name=tokenizer_name)
 
-index = 143
-test_data = CSL_dataset[index][0]
-print(CSL_dataset.data_sentence_token[index].tokens)
-origin_data = CSL_dataset.decode([test_data])
-print(origin_data)
+# index = 143
+# test_data = CSL_dataset[index][0]
+# print(CSL_dataset.data_sentence_token[index].tokens)
+# origin_data = CSL_dataset.decode([test_data])
+# print(origin_data)
 # input_text = ["谢谢你！", "不客气！"]
 # outputs = CSL_dataset.tokenizer.encode_batch(input_text)
 # outputs_ids = [output.ids for output in outputs]
 # decode_outputs = CSL_dataset.decode(outputs_ids)
 # print(decode_outputs)
+# print(CSL_dataset.get_token_id(token='1'))
