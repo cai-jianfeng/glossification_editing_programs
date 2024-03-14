@@ -18,6 +18,8 @@ class CSL_Dataset(Dataset):
         给定数据集文件路径, 读取数据
         :param dataset_file: type: str -> the filename of dataset
         :param editing_casual_mask_file: type: int -> the filename of editing casual mask of the dataset
+        :param pre_trained_tokenizer: type: bool -> using the pre_trained tokenizer. If it is True, must offer the tokenizer_name
+        :param tokenizer_name: type: str -> the name of pre_trained tokenizer
         :return None
         """
         if pre_trained_tokenizer:
@@ -88,4 +90,9 @@ class CSL_Dataset(Dataset):
         return self.tokenizer.get_vocab_size()
 
     def get_pad_id(self, pad_token='[PAD]'):
+        """
+        获得当前数据集使用的 tokenizer 的 pad token id
+        :param pad_token: type: str -> tokenizer 使用的 pad 的符号, 默认为 [PAD]
+        :return: pad token id: type: int
+        """
         return self.tokenizer.token_to_id(pad_token)
