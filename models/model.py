@@ -166,13 +166,21 @@ class Executor(nn.Module):
                  inner_size=2048,
                  dropout_rate=0.1,
                  encoder_n_layers=1,
+                 use_pre_trained_embedding=False,
+                 pre_trained_embedding=None
                  ):
         super(Executor, self).__init__()
         self.hidden_size = hidden_size
         self.emb_scale = hidden_size ** 0.5
         self.trg_pad_idx = trg_pad_idx
 
-        self.t_vocab_embedding = nn.Embedding(t_vocab_size, hidden_size)
+        if use_pre_trained_embedding:
+            assert pre_trained_embedding, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
+            assert pre_trained_embedding.weight.shape == torch.Size([t_vocab_size, hidden_size]), 'If use_pre_trained_embedding is True, you muse offer the special t_vocab_size and hidden_size which are same as pre_trained_embedding !'
+
+            self.t_vocab_embedding = pre_trained_embedding
+        else:
+            self.t_vocab_embedding = nn.Embedding(t_vocab_size, hidden_size)
         self.t_emb_dropout = nn.Dropout(dropout_rate)
 
         # Executor Encoder
@@ -246,7 +254,10 @@ class Glossification(nn.Module):
                  generator_encoder_n_layers=3,
                  generator_decoder_n_layers=1,
                  executor_encoder_n_layers=1,
-                 share_target_embeddings=True):
+                 share_target_embeddings=True,
+                 use_pre_trained_embedding=False,
+                 pre_trained_embedding=None
+                 ):
         """
         :param i_vocab_size: int, the vocabulary size of the inputs
         :param p_vocab_size: int, the vocabulary size of the programs
@@ -262,6 +273,8 @@ class Glossification(nn.Module):
         :param generator_decoder_n_layers: int, the layer number of the generator decoder
         :param executor_encoder_n_layers: int, the layer number of the executor encoder
         :param share_target_embeddings: bool, whether the inputs and outputs embedding is the same
+        :param use_pre_trained_embedding: bool, whether using the pre-trained embedding table
+        :param pre_trained_embedding: torch.nn.modules.sparse.Embedding, the pre-trained embedding table. It must be offered if use_pre_trained_embedding is True.
         """
         super(Glossification, self).__init__()
         self.generator = Generator(i_vocab_size,
@@ -274,14 +287,18 @@ class Glossification(nn.Module):
                                    generator_decoder_n_layers,
                                    src_pad_idx,
                                    pro_pad_idx,
-                                   share_target_embeddings)
+                                   share_target_embeddings,
+                                   use_pre_trained_embedding,
+                                   pre_trained_embedding)
         self.executor = Executor(t_vocab_size,
                                  trg_pad_idx,
                                  head_num,
                                  hidden_size,
                                  inner_size,
                                  dropout_rate,
-                                 executor_encoder_n_layers)
+                                 executor_encoder_n_layers,
+                                 use_pre_trained_embedding,
+                                 pre_trained_embedding)
         self.edit_attn = MultiHeadAttention(hidden_size,
                                             dropout_rate,
                                             head_num)

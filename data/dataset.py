@@ -5,6 +5,7 @@
 @Begin Date: 2023/11/10 20:29
 @Author: caijianfeng
 """
+import torch
 from torch.utils.data import Dataset
 # from torchtext.data import Dataset
 import numpy as np
@@ -39,18 +40,22 @@ class CSL_Dataset(Dataset):
         self.data_lines_editing_program = [data_line[7] for data_line in self.data_lines_split]
         self.editing_casual_mask = editing_casual_mask
 
-        self.data_sentence_token = self.tokenize(self.data_lines_sentence)
-        self.data_gloss_token = self.tokenize(self.data_lines_gloss)
-        self.data_editing_program_token = self.tokenize(self.data_lines_editing_program)
+        self.data_sentence_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_sentence)]
+        self.data_gloss_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_gloss)]
+        self.data_editing_program_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_editing_program)]
 
     def __getitem__(self, item):
         """
         根据 item (即 index) 获取对应标号的数据, 包括 (原始句子, gloss, editing program, editing casual mask)
         :param item: type: int -> the index of data in dataset
-        :return: tuple(list(int), list(int), list(int), np.array(data_num, max_program_length, max_gloss_length)) -> (sentence token indexes, gloss token indexes, editing program token indexes, editing casual mask)
+        :return: dict(tensor(int), tensor(int), tensor(int), np.array(data_num, max_program_length, max_gloss_length)) -> (sentence token indexes, gloss token indexes, editing program token indexes, editing casual mask)
         """
-        return self.data_sentence_token[item].ids, self.data_gloss_token[item].ids, self.data_editing_program_token[
-            item].ids, self.editing_casual_mask[item]
+        return {
+            'src': self.data_sentence_token[item],
+            'trg': self.data_gloss_token[item],
+            'pro': self.data_editing_program_token[item],
+            'editing_casual_mask': self.editing_casual_mask[item]
+        }
 
     def __len__(self):
         return len(self.data_sentence_token)
