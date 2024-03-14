@@ -20,9 +20,9 @@ CSL_dataset = CSL_Dataset(dataset_file=dataset_file,
                           pre_trained_tokenizer=True,
                           tokenizer_name=tokenizer_name)
 
-test_data = CSL_dataset[0][0]
-print(test_data)
-
+index = 143
+test_data = CSL_dataset[index][0]
+print(CSL_dataset.data_sentence_token[index].tokens)
 origin_data = CSL_dataset.decode([test_data])
 print(origin_data)
 # input_text = ["谢谢你！", "不客气！"]

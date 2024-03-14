@@ -11,6 +11,7 @@ import numpy as np
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
 
+
 class CSL_Dataset(Dataset):
     def __init__(self, dataset_file, editing_casual_mask_file, pre_trained_tokenizer=True, tokenizer_name=None):
         """
@@ -46,21 +47,23 @@ class CSL_Dataset(Dataset):
         :param item: type: int -> the index of data in dataset
         :return: tuple(list(int), list(int), list(int), np.array(data_num, max_program_length, max_gloss_length)) -> (sentence token indexes, gloss token indexes, editing program token indexes, editing casual mask)
         """
-        return self.data_sentence_token[item].ids, self.data_gloss_token[item].ids, self.data_editing_program_token[item].ids, self.editing_casual_mask[item]
+        return self.data_sentence_token[item].ids, self.data_gloss_token[item].ids, self.data_editing_program_token[
+            item].ids, self.editing_casual_mask[item]
 
     def __len__(self):
         return len(self.data_sentence_token)
 
-    def tokenize(self, text):
+    def tokenize(self, text, enable_padding=True):
+        """
+        将给定的一个 batch 的文字数据转化为 token id 序列
+        :param enable_padding: type: bool -> 表示是否将给定的 batch 的数据填充到同一长度(以最长序列为准)
+        :param text: list(str) -> 表示一个 batch 的文字数据
+        :return: list(tokenizers.Encoding) -> 表示对应的 token id 序列
+        """
+        if enable_padding:
+            self.tokenizer.enable_padding()  # 允许 tokenizer 按照给定的 batch 中的最长序列对其余序列进行 [PAD] 填充
         text_token = self.tokenizer.encode_batch(text)
         return text_token
-
-    def get_vocab(self):
-        """
-        获得当前数据集使用的 tokenizer 的 vocab
-        :return: token vocab: type: dict -> key 是 汉字, value 是 token index
-        """
-        return self.tokenizer.get_vocab()
 
     def decode(self, text_token_ids):
         """
@@ -69,3 +72,20 @@ class CSL_Dataset(Dataset):
         :return: type: list(str) -> 表示对应的一个 batch 的字符串
         """
         return self.tokenizer.decode_batch(text_token_ids)
+
+    def get_vocab(self):
+        """
+        获得当前数据集使用的 tokenizer 的 vocab
+        :return: token vocab: type: dict -> key 是 汉字, value 是 token index
+        """
+        return self.tokenizer.get_vocab()
+
+    def get_vocab_size(self):
+        """
+        获得当前数据集使用的 tokenizer 的 vocab size
+        :return: token vocab size: type: int
+        """
+        return self.tokenizer.get_vocab_size()
+
+    def get_pad_id(self, pad_token='[PAD]'):
+        return self.tokenizer.token_to_id(pad_token)
