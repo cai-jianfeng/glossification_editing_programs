@@ -6,7 +6,7 @@
 @Author: caijianfeng
 """
 
-from transformer import Encoder, Decoder, MultiHeadAttention
+from models.transformer import Encoder, Decoder, MultiHeadAttention
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -49,7 +49,7 @@ class Generator(nn.Module):
         #     self.p_vocab_embedding = self.i_vocab_embedding
         # self.p_emb_dropout = nn.Dropout(dropout_rate)
         if use_pre_trained_embedding:
-            assert pre_trained_embedding, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
+            assert pre_trained_embedding is not None, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
             assert pre_trained_embedding.weight.shape == torch.Size([i_vocab_size, hidden_size]),  'If use_pre_trained_embedding is True, you muse offer the special i_vocab_size and hidden_size which are same as pre_trained_embedding !'
             self.i_vocab_embedding = pre_trained_embedding
         else:
@@ -175,7 +175,7 @@ class Executor(nn.Module):
         self.trg_pad_idx = trg_pad_idx
 
         if use_pre_trained_embedding:
-            assert pre_trained_embedding, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
+            assert pre_trained_embedding is not None, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
             assert pre_trained_embedding.weight.shape == torch.Size([t_vocab_size, hidden_size]), 'If use_pre_trained_embedding is True, you muse offer the special t_vocab_size and hidden_size which are same as pre_trained_embedding !'
 
             self.t_vocab_embedding = pre_trained_embedding
@@ -328,6 +328,10 @@ class Glossification(nn.Module):
         # print('gen_outputs shape: ', gen_outputs.shape)
         exc_outputs = self.executor(targets)  # [b, t_len, d_model]
         # print('exc_outputs shape: ', exc_outputs.shape)
+        print(gen_outputs.shape, '; ', exc_outputs.shape, '; ', editing_casual_mask.shape)
+        # gen_outputs.shape = [b, p_len, d_model]
+        # exc_outputs.shape = [b, t_len, d_model]
+        # editing_casual_mask.shape = [b, p_len, t_len]
         edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, editing_casual_mask)  # [b, p_len, d_model]
         # print('edit_outputs shape: ', edit_outputs.shape)
         # 原论文是在 editing casual attention 之后添加一个 linear 层将输出映射到 p_vocab_size 维度

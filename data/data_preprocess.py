@@ -31,16 +31,16 @@ compress_edit_trajectorys_lines = ['; '.join(compress_edit_trajectory) + '\n' fo
 # with open(data_preprocess_file_name, 'w', encoding='utf-8') as f:
 #     f.writelines(compress_edit_trajectorys_lines)
 
-data_preprocess_file_name = 'CSL-Daily_editing_chinese.txt'
+# data_preprocess_file_name = 'CSL-Daily_editing_chinese.txt'
+#
+# with open(data_preprocess_file_name, 'w', encoding='utf-8') as f:
+#     # f.writelines(compress_edit_trajectorys_lines)
+#     f.write(data_lines[0].replace('\n', '') + '|editing program\n')
+#     for i, (origin_data, compress_edit_trajectory) in enumerate(zip(data_lines[1:], compress_edit_trajectorys_lines)):
+#         f.write('|'.join([origin_data.replace('\n', ''), compress_edit_trajectory]))
 
-with open(data_preprocess_file_name, 'w', encoding='utf-8') as f:
-    # f.writelines(compress_edit_trajectorys_lines)
-    f.write(data_lines[0].replace('\n', '') + '|editing program\n')
-    for i, (origin_data, compress_edit_trajectory) in enumerate(zip(data_lines[1:], compress_edit_trajectorys_lines)):
-        f.write('|'.join([origin_data.replace('\n', ''), compress_edit_trajectory]))
-
-editing_casual_mask_file = 'editing_casual_mask_CSL_50_40.npy'  # 命名规则: editing_casual_mask + _数据集名称 + _max editing program length + _max gloss length
-max_program_len, max_glosses_len = 50, 40  # the max length of editing program and glosses in CSL dataset are 42 and 38.
+editing_casual_mask_file = 'editing_casual_mask_CSL_174_40.npy'  # 命名规则: editing_casual_mask + _数据集名称 + _max editing program length + _max gloss length
+max_program_len, max_glosses_len = 174, 40  # the max length of editing program and glosses in CSL dataset are 42 and 38.
 
 editing_casual_mask = generate_editing_casual_mask(editing_programs=compress_edit_trajectorys,
                                                    max_program_len=max_program_len,
