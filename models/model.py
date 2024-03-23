@@ -328,7 +328,7 @@ class Glossification(nn.Module):
         # print('gen_outputs shape: ', gen_outputs.shape)
         exc_outputs = self.executor(targets)  # [b, t_len, d_model]
         # print('exc_outputs shape: ', exc_outputs.shape)
-        print(gen_outputs.shape, '; ', exc_outputs.shape, '; ', editing_casual_mask.shape)
+        # print(gen_outputs.shape, '; ', exc_outputs.shape, '; ', editing_casual_mask.shape)
         # gen_outputs.shape = [b, p_len, d_model]
         # exc_outputs.shape = [b, t_len, d_model]
         # editing_casual_mask.shape = [b, p_len, t_len]

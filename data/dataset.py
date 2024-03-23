@@ -43,6 +43,9 @@ class CSL_Dataset(Dataset):
         self.data_sentence_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_sentence)]
         self.data_gloss_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_gloss)]
         self.data_editing_program_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_editing_program)]
+        # for i, data_edit in enumerate(self.data_editing_program_token):
+        #     if data_edit[-1] != self.get_pad_id():
+        #         print(i, '; ', len(data_edit))
 
     def __getitem__(self, item):
         """

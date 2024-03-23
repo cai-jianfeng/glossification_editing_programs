@@ -10,6 +10,7 @@
 
 import shutil
 import math
+import os
 
 import torch
 import torch.nn.functional as F
@@ -68,6 +69,8 @@ def get_accuracy(pred, ans, pad):
 
 
 def save_checkpoint(model, filepath, global_step, is_best):
+    if not os.path.exists(filepath):
+        os.mkdir(filepath)
     model_save_path = filepath + '/last_model.pt'
     torch.save(model, model_save_path)
     torch.save(global_step, filepath + '/global_step.pt')
