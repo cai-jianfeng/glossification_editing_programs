@@ -26,7 +26,7 @@ from tqdm import tqdm
 import time
 import json
 
-set_proxy()
+# set_proxy()
 
 
 def summarize_train(writer, global_step, last_time, opt,

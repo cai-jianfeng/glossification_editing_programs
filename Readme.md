@@ -1,12 +1,40 @@
-# glossification with editing causal attention (GECA)
+# glossification with editing causal attention (Edit-Att)
 
 This is the code implementation of the paper [Transcribing Natural Languages for the Deaf via Neural Editing Programs](https://ojs.aaai.org/index.php/AAAI/article/view/21457) using pytorch based on the [transformer library](https://github.com/tunz/transformer-pytorch).
 
-## List of the code files
+# installation
 
-- [extract_editing_program.py](/data/extract_editoring_program.py): This is the implementation of the minimal editing program using **Dynamic Programming** and **Backtracking** algorithm.
-- [transformer.py](/models/transformer.py): This is the implementation of the **Transformer**, including MHA, FFN and so on.
-- [model.py](/models/model.py): This is the implementation of the *GECA*, including Generator, Executor and editing causal attention.
-- [optimizer.py](/optimizer.py): This is the encapsulation of the **Adam** optimizer in order to easily use.
-- [utils.py](/utils.py): This is the useful utility code, including mask computation, loss computation and so on.
-- [train.py](/train.py): This is the main code used to implement **model training**, validation, logging, etc.
+create conda environment and install dependence package
+
+```shell
+conda create -n editatt python=3.8
+conda activate editatt
+pip3 install torch torchvision torchaudio
+
+pip install transformers
+pip install tensorboardX
+pip install tokenizers
+pip install nltk
+```
+
+# preparation
+
+download CSL dataset in ```./``` (under the current project directory) from [huggingface](https://huggingface.co/). 
+The dataset file directory structure is as follows:
+
+```
+CSL_data
+|-- CSL-Daily.txt
+|-- CSL-Daily_editing.txt
+|-- CSL-Daily_editing_chinese.txt
+|-- CSL-Daily_editing_chinese_test.txt
+|-- CSL-Daily_test.txt
+|-- editing_casual_mask_CSL_174_40.npy
+|-- editing_casual_mask_CSL_174_40_test.npy
+```
+
+# train
+
+```shell
+python train.py --share_target_embeddings --use_pre_trained_embedding
+```
