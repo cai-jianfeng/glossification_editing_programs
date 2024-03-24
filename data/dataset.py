@@ -14,7 +14,7 @@ from tokenizers.models import BPE
 
 
 class CSL_Dataset(Dataset):
-    def __init__(self, dataset_file, editing_casual_mask_file, pre_trained_tokenizer=True, tokenizer_name=None):
+    def __init__(self, dataset_file=None, editing_casual_mask_file=None, pre_trained_tokenizer=True, tokenizer_name=None):
         """
         给定数据集文件路径, 读取数据
         :param dataset_file: type: str -> the filename of dataset
@@ -29,23 +29,25 @@ class CSL_Dataset(Dataset):
         else:
             self.tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
 
-        with open(dataset_file, 'r', encoding='utf-8') as f:
-            data_lines = f.readlines()
-        editing_casual_mask = np.load(editing_casual_mask_file)
+        if dataset_file is not None and editing_casual_mask_file is not None:
+            with open(dataset_file, 'r', encoding='utf-8') as f:
+                data_lines = f.readlines()
+            editing_casual_mask = np.load(editing_casual_mask_file)
 
-        self.data_lines = data_lines
-        self.data_lines_split = [data_line.split('|') for data_line in self.data_lines[1:]]
-        self.data_lines_gloss = [data_line[3] for data_line in self.data_lines_split]
-        self.data_lines_sentence = [data_line[4] for data_line in self.data_lines_split]
-        self.data_lines_editing_program = [data_line[7] for data_line in self.data_lines_split]
-        self.editing_casual_mask = editing_casual_mask
+            self.data_lines = data_lines
+            self.data_lines_split = [data_line.split('|') for data_line in self.data_lines[1:]]
+            self.data_lines_gloss = [data_line[3] for data_line in self.data_lines_split]
+            self.data_lines_sentence = [data_line[4] for data_line in self.data_lines_split]
+            self.data_lines_editing_program = [data_line[7] for data_line in self.data_lines_split]
+            self.editing_casual_mask = editing_casual_mask
 
-        self.data_sentence_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_sentence)]
-        self.data_gloss_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_gloss)]
-        self.data_editing_program_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_editing_program)]
-        # for i, data_edit in enumerate(self.data_editing_program_token):
-        #     if data_edit[-1] != self.get_pad_id():
-        #         print(i, '; ', len(data_edit))
+            self.data_sentence_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_sentence)]
+            self.data_gloss_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_gloss)]
+            self.data_editing_program_token = [torch.tensor(token.ids) for token in
+                                               self.tokenize(self.data_lines_editing_program)]
+            # for i, data_edit in enumerate(self.data_editing_program_token):
+            #     if data_edit[-1] != self.get_pad_id():
+            #         print(i, '; ', len(data_edit))
 
     def __getitem__(self, item):
         """
@@ -112,3 +114,6 @@ class CSL_Dataset(Dataset):
         :return: pad token id: type: int
         """
         return self.get_token_id(pad_token)
+
+    def get_token_from_id(self, id):
+        return self.tokenizer.id_to_token(id)

@@ -12,6 +12,8 @@ from optimizer import LRScheduler
 from transformers import AutoModel
 
 from tensorboardX import SummaryWriter
+import nltk
+from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 
 from models.model import Glossification
 from data.dataset import CSL_Dataset
@@ -22,8 +24,9 @@ import argparse
 import os
 from tqdm import tqdm
 import time
+import json
 
-# set_proxy()
+set_proxy()
 
 
 def summarize_train(writer, global_step, last_time, opt,
@@ -108,6 +111,8 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
     model.eval()
     total_loss = 0.0
     total_cnt = 0
+    total_bleu3_score = 0
+    total_bleu4_score = 0
     for batch_data in dataloader:
         src = batch_data['src'].to(device)
         trg = batch_data['trg'].to(device)
@@ -115,24 +120,45 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
         editing_casual_mask = batch_data['editing_casual_mask'].to(device)
 
         with torch.no_grad():
-            pred = model(src, trg, pro, editing_casual_mask)
-
-            pred = pred.view(-1, pred.size(-1))
-            ans = pro.view(-1)
+            pred = model(src, trg, pro, editing_casual_mask)  # [b, p_len, p_vocab_size]
+            pred_index = torch.argmax(pred, dim=-1).tolist()  # [b, p_len]
+            pro_index = pro.tolist()
+            pro_index = [[p] for p in pro_index]
+            # print(pred.shape, '; ', pro.shape)
+            # dataset = dataloader.dataset
+            # pred_index = [p.append(dataset.token_to_id('.')) for p in pred_index]
+            # pred_str = dataset.decode(pred_index)  # [b , str(len=p_len)]
+            # program_str = dataset.decode(pro.tolist())  # [b , str(len=p_len)]
+            # print(pred_str, '; ', program_str)
+            # programs_str = [[pro] for pro in program_str]  # [b, 1, str(len=p_len)]
+            # predictions is list[str]; references is list[list[str]]
+            # total_bleu_score += results['bleu']
+            # each_bleu_score = [origin + new for origin, new in zip(each_bleu_score, results['precisions'])]
+            smooth_fun = SmoothingFunction()
+            bleu3 = corpus_bleu(pro_index, pred_index, weights=[0.5, 0.5, 0.5], smoothing_function=smooth_fun.method1)
+            bleu4 = corpus_bleu(pro_index, pred_index, smoothing_function=smooth_fun.method1)
+            pred = pred.view(-1, pred.size(-1))  # [b * p_len, p_vocab_size]
+            ans = pro.view(-1)  # [b * p_len]
             loss = get_loss(pred, ans, opt.p_vocab_size, 0, opt.pro_pad_idx)
+        total_bleu3_score += bleu3 * len(batch_data)
+        total_bleu4_score += bleu4 * len(batch_data)
         total_loss += loss.item() * len(batch_data)
         total_cnt += len(batch_data)
 
     val_loss = total_loss / total_cnt
+    total_bleu3_score = total_bleu3_score / total_cnt
+    total_bleu4_score = total_bleu4_score / total_cnt
     print("Validation Loss: ", val_loss)
+    print("total bleu3 score: ", total_bleu3_score)
+    print("total bleu4 score: ", total_bleu4_score)
     val_writer.add_scalar('loss', val_loss, global_step)
-    return val_loss
+    return val_loss, total_bleu3_score, total_bleu4_score
 
 
 def main():
     arg = argparse.ArgumentParser()
     arg.add_argument('--dataset', type=str, default='CSL')
-    arg.add_argument('--dataset_path', type=str, default='./data/')
+    arg.add_argument('--dataset_path', type=str, default='./CSL_data/')
     arg.add_argument('--tokenizer', type=str, default='bert-base-chinese')
     arg.add_argument('--batch_size', type=int, default=4)
     arg.add_argument('--head_num', type=int, default=10)
@@ -147,11 +173,11 @@ def main():
     arg.add_argument('--warmup', type=int, default=100)
     arg.add_argument('--no_cuda', action='store_true')
     arg.add_argument("--output_dir", type=str, default='./output')
-    arg.add_argument('--train_epochs', type=int, default=10)
+    arg.add_argument('--train_epochs', type=int, default=150)
     opt = arg.parse_args()
     if opt.dataset == 'CSL':
-        dataset_file = os.path.join(opt.dataset_path, 'CSL-Daily_editing_chinese.txt')
-        editing_casual_mask_file = os.path.join(opt.dataset_path, 'editing_casual_mask_CSL_174_40.npy')
+        dataset_file = os.path.join(opt.dataset_path, 'CSL-Daily_editing_chinese_test.txt')
+        editing_casual_mask_file = os.path.join(opt.dataset_path, 'editing_casual_mask_CSL_174_40_test.npy')
     else:
         assert True, 'Currently only the CSL datasets is supported !'
 
@@ -165,7 +191,7 @@ def main():
                               tokenizer_name=tokenizer_model_name)
 
     batch_size = opt.batch_size
-    CSL_dataloader = DataLoader(CSL_dataset, batch_size)
+    CSL_dataloader = DataLoader(CSL_dataset, batch_size, shuffle=True)
 
     # tokenizer = CSL_dataset.tokenizer
     # Load the pre-trained model and tokenizer
@@ -182,7 +208,9 @@ def main():
     share_target_embeddings = opt.share_target_embeddings
     use_pre_trained_embedding = opt.use_pre_trained_embedding
 
+    opt.i_vocab_size = CSL_dataset.get_vocab_size()
     opt.src_pad_idx = CSL_dataset.get_pad_id()
+    opt.t_vocab_size = CSL_dataset.get_vocab_size()
     opt.trg_pad_idx = CSL_dataset.get_pad_id()
     opt.p_vocab_size = CSL_dataset.get_vocab_size()
     opt.pro_pad_idx = CSL_dataset.get_pad_id()
@@ -222,6 +250,8 @@ def main():
         os.mkdir(opt.output_dir)
 
     best_val_loss = float('inf')
+    best_total_bleu3 = 0
+    best_total_bleu4 = 0
     print('train begin !')
     for epoch in range(opt.train_epochs):
         print('Epoch: ', epoch)
@@ -229,13 +259,24 @@ def main():
         global_step = train(model, CSL_dataloader, Adam_optimizer, opt, device, writer, global_step)
         print("Epoch Time: {:.2f} sec".format(time.time() - start_epoch_time))
 
-        val_loss = validation(CSL_dataloader, model, global_step, val_writer, opt, device)
+        val_loss, total_bleu3, total_bleu4 = validation(CSL_dataloader, model, global_step, val_writer, opt, device)
         save_checkpoint(model, opt.output_dir + '/last/models',
                         global_step, val_loss < best_val_loss)
         best_val_loss = min(val_loss, best_val_loss)
+        best_total_bleu3 = max(best_total_bleu3, total_bleu3)
+        best_total_bleu4 = max(best_total_bleu3, total_bleu4)
 
     writer.close()
     val_writer.close()
+
+    train_args = opt.__dict__
+
+    with open(os.path.join(opt.output_dir, 'train.json'), 'w', encoding='utf-8') as f:
+        json.dump(train_args, f)
+    print('save train args succeed !')
+
+    print('total best bleu3: ', best_total_bleu3)
+    print('total best bleu4: ', best_total_bleu4)
 
 
 if __name__ == '__main__':

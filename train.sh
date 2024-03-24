@@ -2,4 +2,5 @@
 pip install transformers
 pip install tensorboardX
 pip install tokenizers
+pip install nltk
 HF_ENDPOINT=https://hf-mirror.com python train.py --share_target_embeddings --use_pre_trained_embedding
