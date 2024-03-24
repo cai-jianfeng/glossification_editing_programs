@@ -15,6 +15,7 @@ pip install transformers
 pip install tensorboardX
 pip install tokenizers
 pip install nltk
+pip install rouge
 ```
 
 # preparation

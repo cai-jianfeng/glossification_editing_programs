@@ -12,7 +12,7 @@ from optimizer import LRScheduler
 from transformers import AutoModel
 
 from tensorboardX import SummaryWriter
-import nltk
+from rouge import Rouge
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 
 from models.model import Glossification
@@ -113,6 +113,8 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
     total_cnt = 0
     total_bleu3_score = 0
     total_bleu4_score = 0
+    rouge = Rouge()
+    total_rouge_l = 0
     for batch_data in dataloader:
         src = batch_data['src'].to(device)
         trg = batch_data['trg'].to(device)
@@ -122,7 +124,8 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
         with torch.no_grad():
             pred = model(src, trg, pro, editing_casual_mask)  # [b, p_len, p_vocab_size]
             pred_index = torch.argmax(pred, dim=-1).tolist()  # [b, p_len]
-            pro_index = pro.tolist()
+            pro_index = pro.tolist()  # [b, p_len]
+            rouge_l = sum([score['rouge-l']['f'] for score in rouge.get_scores(["".join(str(index) for index in pre_index) for pre_index in pred_index], ["".join(str(index) for index in pr_index) for pr_index in pro_index])])
             pro_index = [[p] for p in pro_index]
             # print(pred.shape, '; ', pro.shape)
             # dataset = dataloader.dataset
@@ -142,15 +145,18 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
             loss = get_loss(pred, ans, opt.p_vocab_size, 0, opt.pro_pad_idx)
         total_bleu3_score += bleu3 * len(batch_data)
         total_bleu4_score += bleu4 * len(batch_data)
+        total_rouge_l += rouge_l
         total_loss += loss.item() * len(batch_data)
         total_cnt += len(batch_data)
 
     val_loss = total_loss / total_cnt
     total_bleu3_score = total_bleu3_score / total_cnt
     total_bleu4_score = total_bleu4_score / total_cnt
+    total_rouge_l = total_rouge_l / total_cnt
     print("Validation Loss: ", val_loss)
     print("total bleu3 score: ", total_bleu3_score)
     print("total bleu4 score: ", total_bleu4_score)
+    print("total rouge-l score: ", total_rouge_l)
     val_writer.add_scalar('loss', val_loss, global_step)
     return val_loss, total_bleu3_score, total_bleu4_score
 

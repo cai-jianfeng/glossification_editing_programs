@@ -6,15 +6,17 @@
 @End Date: 
 @Author: caijianfeng
 """
-import utils
+from rouge import Rouge
 
-# utils.set_proxy()
+# 实例化 ROUGE 计算器
+rouge = Rouge()
 
-import nltk
-from nltk.translate.bleu_score import corpus_bleu
+# 假设你有参考摘要和生成摘要
+reference_summary = ["对不起！", "你好！"]
+generated_summary = ["对不起！", "你好！"]
 
-reference = [['this', 'is', 'a', 'test'], ['this', 'is', 'test']]
-candidate = ['this', 'is', 'a', 'test']
+# 计算 ROUGE 分数
+scores = rouge.get_scores(generated_summary, reference_summary)
 
-bleu_score = corpus_bleu(reference, candidate)
-print("BLEU Score:", bleu_score)
+# 输出 ROUGE 分数
+print(scores)
