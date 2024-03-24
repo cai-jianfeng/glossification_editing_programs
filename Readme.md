@@ -19,7 +19,7 @@ pip install nltk
 
 # preparation
 
-download CSL dataset in ```./``` (under the current project directory) from [huggingface](https://huggingface.co/). 
+download CSL dataset in ```./``` (under the current project directory) from [huggingface](https://huggingface.co/datasets/caijanfeng/CSL_dataset). 
 The dataset file directory structure is as follows:
 
 ```
@@ -37,4 +37,18 @@ CSL_data
 
 ```shell
 python train.py --share_target_embeddings --use_pre_trained_embedding
+```
+
+# inference
+
+download model checkpoints trained on CSL dataset in ```./``` (under the current project directory) from [huggingface](https://huggingface.co/caijanfeng/Edit-Att)
+The checkpoints file directory structure is as follows:
+
+```
+output
+|-- last
+    |-- models
+        |-- best_model.pt
+        |-- global_step.pt
+        |-- last_model.pt
 ```
