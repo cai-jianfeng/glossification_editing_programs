@@ -116,4 +116,16 @@ class CSL_Dataset(Dataset):
         return self.get_token_id(pad_token)
 
     def get_token_from_id(self, id):
+        """
+        给定 id, 获得当前数据集使用的 tokenizer 的对应 token
+        :param id: type: int -> token id
+        :return: token: type: str -> 给定 id 所对应的 token
+        """
         return self.tokenizer.id_to_token(id)
+
+    def get_data_len(self):
+        return {
+            'src': self.data_sentence_token[0].shape[0],
+            'trg': self.data_gloss_token[0].shape[0],
+            'pro': self.data_editing_program_token[0].shape[0],
+        }

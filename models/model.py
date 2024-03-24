@@ -321,7 +321,7 @@ class Glossification(nn.Module):
                               self.generator.t_vocab_embedding.weight.transpose(0, 1))  # [b, p_len, p_vocab_size]
         return output  # [b, p_len, p_vocab_size]
 
-    def forward(self, inputs, targets, programs, editing_casual_mask):
+    def forward(self, inputs, targets, programs, editing_casual_mask=None):
         # inputs.shape = [b, i_len]
         # targets.shape = [b, t_len]
         # programs.shape = [b, p_len]

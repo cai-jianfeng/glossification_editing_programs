@@ -15,41 +15,58 @@ import utils
 import json
 import argparse
 
-import evaluate
 
 utils.set_proxy()
 
 
-def execute(targets, programs, add_id, copy_id):
+def execute(input, part_program, target, add_id, copy_id, zero_id, p):
     """
-    通过执行 programs 生成 editing casual attention 的 mask
-    :param targets: glosses -> shape = [b, t_len]
-    :param programs: min editing programs -> shape = [b, p_len]
-    :return: editing casual attention mask -> shape = [b, p_len, t_len]
+    通过执行部分生成的 programs 生成对应的 gloss
+    :param input: sentence -> shape = [i_len]
+    :param part_program: min editing programs -> shape = [b, p_len]
+    :param target:
+    :param add_id:
+    :param copy_id:
+    :param zero_id:
+    :param p:
+    :return: corresponding glosses -> shape = [b, t_len]
     """
-    mask = torch.zeros(programs.shape[0], programs.shape[1], targets.shape[1])
-    for i, program in enumerate(programs):
-        generator_pointer = 0
-        for j, edit in enumerate(program):
-            if add_id or copy_id in edit:
-                index = int(edit.split(' ')[1])
-                mask[i][generator_pointer: generator_pointer + index] = -1e-8
-                generator_pointer += index
-    return mask
+    if part_program[-2] in [add_id, copy_id]:
+        if zero_id <= part_program[-1] <= zero_id + 9:
+            target += input[p: p+part_program[-1]] if p+part_program[-1] < len(input) else input[:]
+            p += min(part_program[-1], len(input) - p)
+        else:
+            target += input[p]
+            p += 1
+    return target, p
 
-def inference(model, inputs, targets, programs, edit_mask, dataset, evaluator):
+
+def inference(model, inputs, max_output_len, dataset):
+    input_tokens = torch.tensor(dataset.tokenize([inputs])[0].ids).unsqueeze(0)
+    # print('input shape: ', input_tokens.shape)
     model.eval()
     # print(inputs.shape, '; ', targets.shape, '; ', programs.shape)
     # predict = model.forward_origin(inputs, targets, programs)  # [b, p_len, p_vocab_size]
-    predict = model(inputs, targets, programs, edit_mask)
-    pred = torch.argmax(predict, dim=-1)  # [b, p_len]
-    pred_str = dataset.decode(pred.tolist())  # [b , str(len=p_len)]
-    program_str = dataset.decode(programs.tolist())  # [b , str(len=p_len)]
-    # print(pred_str, '; ', program_str)
-    programs_str = [[pro] for pro in program_str]  # [b, 1, str(len=p_len)]
-    # predictions is list[str]; references is list[list[str]]
-    results = evaluator.compute(predictions=pred_str, references=programs_str)
-    return results
+    begin_id = dataset.get_token_id('[CLS]')
+    end_id = dataset.get_token_id('[SEP]')
+    programs = [dataset.tokenize([''])[0].ids]
+    target = ''
+    p = 0
+    for _ in range(max_output_len):
+        if p >= len(inputs):
+            break
+        programs_tensor = torch.tensor(programs)
+        target_tokens = torch.tensor(dataset.tokenize([target])[0].ids).unsqueeze(0)
+        # print('program shape:', programs_tensor.shape, '; target shape: ', target_tokens.shape)
+        predict = model(input_tokens, programs_tensor, target_tokens)[0]  # [p_len, p_vocab_size]
+        pred = torch.argmax(predict[-1], dim=-1).item()
+        # print(p, '; ', input_tokens.shape[-1])
+        if pred == end_id:
+            break
+        programs[0].append(pred)
+        target, p = execute(inputs, programs[0], target, dataset.get_token_id('加'), dataset.get_token_id('制'), dataset.get_token_id('0'), p)
+
+    return dataset.decode(programs)[0], target
 
 
 def main():
@@ -57,7 +74,11 @@ def main():
 
     args.add_argument('--train_args_path', type=str, default='./output/train.json')
     args.add_argument('--trained_model', type=str, default='./output/last/models/best_model.pt')
-
+    args.add_argument('--input', type=str, required=True)
+    args.add_argument('--dataset_path', type=str, default='./CSL_data/CSL-Daily_editing_chinese_test.txt')
+    args.add_argument('--editing_casual_mask_file', type=str, default='./CSL_data/editing_casual_mask_CSL_174_40_test.npy')
+    args.add_argument('--tokenizer_name', type=str, default='bert-base-chinese')
+    args.add_argument('--max_output_len', type=int, default=20)
     infere_opt = args.parse_args()
 
     # with open(infere_opt.train_args_path, 'r', encoding='utf-8') as f:
@@ -83,21 +104,17 @@ def main():
     # )
 
     model = torch.load(infere_opt.trained_model, map_location=torch.device('cpu'))
-    CSL_dataset = CSL_Dataset(dataset_file='./CSL_data/CSL-Daily_editing_chinese_test.txt',
-                              editing_casual_mask_file='./CSL_data/editing_casual_mask_CSL_174_40_test.npy',
+    CSL_dataset = CSL_Dataset(dataset_file=infere_opt.dataset_path,
+                              editing_casual_mask_file=infere_opt.editing_casual_mask_file,
                               pre_trained_tokenizer=True,
-                              tokenizer_name='bert-base-chinese')
-    test_data = CSL_dataset[-1]
-    src, trg, pro, edit_mask = test_data.values()
-    src, trg, pro, edit_mask = src.unsqueeze(0), trg.unsqueeze(0), pro.unsqueeze(0), torch.from_numpy(edit_mask).unsqueeze(0)
-    evaluator_bleu = evaluate.load("bleu")
+                              tokenizer_name=infere_opt.tokenizer_name)
+    src = infere_opt.input
 
     print('model load succeed !')
-
-    metric_results = inference(model, src, trg, pro, edit_mask, CSL_dataset, evaluator_bleu)
-    bleu = metric_results['bleu']
-    scores = metric_results['precisions']
-    print(f'average bleu scores: {bleu}; each bleu score (from 1 to 4): {scores}')
+    max_output_len = infere_opt.max_output_len
+    program, target = inference(model, src, max_output_len, CSL_dataset)
+    print('the predicted editing program: ', program)
+    print('the predicted gloss: ', target)
 
 
 if __name__ == '__main__':
