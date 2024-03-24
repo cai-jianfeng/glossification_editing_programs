@@ -52,3 +52,9 @@ output
         |-- global_step.pt
         |-- last_model.pt
 ```
+
+then you can use the model checkpoints to inference any input sentence:
+
+```shell
+python inference.py --input=<the input sentence you want to inference> --max_output_len=<the max output length of predicted editing program>
+```
