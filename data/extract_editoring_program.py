@@ -14,10 +14,10 @@ def min_edit_distance(sentence, gloss):
     """
     编辑距离，即给定 2 个序列 A 和 B(假设序列的元素是字符串)，至少需要多少次编辑操作可以使得序列 A 变成序列 B
     其中合法的编辑操作包括：
-    1. 增加 Add，即在 A 的任意位置增加一个任意元素
-    2. 删除 Del，即删除 A 的任意位置的元素
+    1. 加 Add，即在 A 的任意位置增加一个任意元素
+    2. 删 Del，即删除 A 的任意位置的元素
     3. 替换 Sub，即将 A 的任意位置的元素替换为另一元素(注意，该代码实现中没有 替换);
-       但是增加了 复制 Copy 操作, 即将 A 序列的元素复制到 B 序列
+       但是增加了 贴 Copy 操作, 即将 A 序列的元素复制到 B 序列
     :param sentence: type: str 序列 A
     :param gloss: type: str 序列 B
     :return: type: np.array(shape = sentence_len + 1, gloss_len + 1) 状态矩阵,
@@ -78,27 +78,27 @@ def min_edit_trajectory(state, sentence, gloss):
         # print(i, '; ', j)
         if state[i][j - 1] + 1 == state[i][j]:
             # edit_program.insert(0, "Add %s" % gloss[j - 1])
-            edit_program.insert(0, "添加 %s" % gloss[j - 1])
+            edit_program.insert(0, "加 %s" % gloss[j - 1])
             j -= 1
         elif state[i - 1][j] + 1 == state[i][j]:
             # edit_program.insert(0, "Del %d" % i)
             # edit_program.insert(0, "Del")
-            edit_program.insert(0, "删除")
+            edit_program.insert(0, "删")
             i -= 1
         elif state[i - 1][j - 1] + 1 == state[i][j]:
             # edit_program.insert(0, "Copy %d" % i)
             # edit_program.insert(0, "Copy")
-            edit_program.insert(0, "复制")
+            edit_program.insert(0, "贴")
             i -= 1
             j -= 1
     while i > 0:
         # edit_program.insert(0, "Del %d" % i)
         # edit_program.insert(0, "Del")
-        edit_program.insert(0, "删除")
+        edit_program.insert(0, "删")
         i -= 1
     while j > 0:
         # edit_program.insert(0, "Add %s" % gloss[j - 1])
-        edit_program.insert(0, "添加 %s" % gloss[j - 1])
+        edit_program.insert(0, "加 %s" % gloss[j - 1])
         j -= 1
 
     return edit_program
@@ -120,7 +120,7 @@ def compress_trajectory(edit_program):
                 new_edit_program.append(edit_program[i] + " %d" % num)
             else:
                 # if 'Add' in edit_program[i]:
-                if '添加' in edit_program[i]:
+                if '加' in edit_program[i]:
                     new_edit_program.append(edit_program[i])
                 else:
                     new_edit_program.append(edit_program[i] + ' 1')
@@ -134,7 +134,7 @@ def compress_trajectory(edit_program):
             num = 0
         else:
             # if 'Add' in edit_program[i]:
-            if '添加' in edit_program[i]:
+            if '加' in edit_program[i]:
                 new_edit_program.append(edit_program[i])
             else:
                 new_edit_program.append(edit_program[i] + ' 1')
@@ -142,10 +142,10 @@ def compress_trajectory(edit_program):
             num = 0
     # 如果最后一个编辑操作是删除, 则可以直接省略, 使用 Skip 结束
     # if 'Del' in new_edit_program[-1]:
-    if '删除' in new_edit_program[-1]:
+    if '删' in new_edit_program[-1]:
         new_edit_program.pop()
     # new_edit_program.append("Skip")
-    new_edit_program.append("跳过")
+    new_edit_program.append("过")
     return new_edit_program
 
 
@@ -191,6 +191,6 @@ if __name__ == '__main__':
     # print(edit_program)
 
     # seq1 = ['Copy', 'Copy', 'Copy', 'Copy', 'Add love', 'Del', 'Del', 'Del', 'Add you']
-    seq1 = ['复制', '复制', '复制', '复制', '添加 你', '删除', '删除', '删除', '添加 好']
+    seq1 = ['贴', '贴', '贴', '贴', '加 你', '删', '删', '删', '加 好']
     seq = compress_trajectory(seq1)
     print(seq)

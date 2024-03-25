@@ -27,6 +27,7 @@ class Generator(nn.Module):
                  decoder_n_layers=1,
                  src_pad_idx=None,
                  pro_pad_idx=None,
+                 edit_op_num=4,
                  share_target_embeddings=False,
                  use_pre_trained_embedding=False,
                  pre_trained_embedding=None):
@@ -50,7 +51,8 @@ class Generator(nn.Module):
         # self.p_emb_dropout = nn.Dropout(dropout_rate)
         if use_pre_trained_embedding:
             assert pre_trained_embedding is not None, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
-            assert pre_trained_embedding.weight.shape == torch.Size([i_vocab_size, hidden_size]),  'If use_pre_trained_embedding is True, you muse offer the special i_vocab_size and hidden_size which are same as pre_trained_embedding !'
+            assert pre_trained_embedding.weight.shape == torch.Size([i_vocab_size,
+                                                                     hidden_size]), 'If use_pre_trained_embedding is True, you muse offer the special i_vocab_size and hidden_size which are same as pre_trained_embedding !'
             self.i_vocab_embedding = pre_trained_embedding
         else:
             self.i_vocab_embedding = nn.Embedding(i_vocab_size,
@@ -83,19 +85,27 @@ class Generator(nn.Module):
 
         # For positional encoding
         self.position_embedding()
+        self.linear_edit_op = nn.Linear(hidden_size, edit_op_num)
+        self.linear_edit_num = nn.Linear(hidden_size, p_vocab_size)
 
     def forward(self, inputs, programs):
         # inputs.shape = [b, i_len]
         # programs.shape = [b, p_len]
         # encoder
         i_mask = utils.create_pad_mask(inputs, self.src_pad_idx)  # [b, 1, i_len]
+        # print(i_mask.shape)
         enc_output = self.encode(inputs, i_mask)  # [b, i_len, d_model]
         # decoder
         p_mask = utils.create_pad_mask(programs, self.pro_pad_idx)  # [b, 1, p_len]
         program_size = programs.size()[1]  # p_len
         p_self_mask = utils.create_trg_self_mask(program_size, device=programs.device)  # [1, p_len, p_len]
         dec_output = self.decode(programs, enc_output, i_mask, p_self_mask, p_mask)  # [b, p_len, d_model]
-        return dec_output  # [b, p_len, d_model]
+        # return dec_output  # [b, p_len, d_model]
+        dec_output_edit_op = dec_output[:, 1::2, :]  # [b, p_len/2, d_model]
+        dec_output_edit_num = dec_output[:, ::2, :]  # [b, p_len/2, d_model]
+        edit_op = self.linear_edit_op(dec_output_edit_op)
+        edit_num = self.linear_edit_num(dec_output_edit_num)
+        return edit_op, edit_num
 
     def encode(self, inputs, i_mask):
         input_embedded = self.i_vocab_embedding(inputs)  # [b, i_len, d_model]
@@ -137,7 +147,7 @@ class Generator(nn.Module):
         log_timescale_increment = (
                 math.log(float(max_timescale) /
                          float(min_timescale)) /
-                         max(num_timescales - 1, 1))
+                max(num_timescales - 1, 1))
         inv_timescales = min_timescale * torch.exp(
             torch.arange(num_timescales, dtype=torch.float32) *
             -log_timescale_increment)
@@ -176,7 +186,8 @@ class Executor(nn.Module):
 
         if use_pre_trained_embedding:
             assert pre_trained_embedding is not None, 'If use_pre_trained_embedding is True, you muse offer pre_trained_embedding !'
-            assert pre_trained_embedding.weight.shape == torch.Size([t_vocab_size, hidden_size]), 'If use_pre_trained_embedding is True, you muse offer the special t_vocab_size and hidden_size which are same as pre_trained_embedding !'
+            assert pre_trained_embedding.weight.shape == torch.Size([t_vocab_size,
+                                                                     hidden_size]), 'If use_pre_trained_embedding is True, you muse offer the special t_vocab_size and hidden_size which are same as pre_trained_embedding !'
 
             self.t_vocab_embedding = pre_trained_embedding
         else:
@@ -206,7 +217,7 @@ class Executor(nn.Module):
         log_timescale_increment = (
                 math.log(float(max_timescale) /
                          float(min_timescale)) /
-                         max(num_timescales - 1, 1))
+                max(num_timescales - 1, 1))
         inv_timescales = min_timescale * torch.exp(
             torch.arange(num_timescales, dtype=torch.float32) *
             -log_timescale_increment)
@@ -333,7 +344,8 @@ class Glossification(nn.Module):
         # gen_outputs.shape = [b, p_len, d_model]
         # exc_outputs.shape = [b, t_len, d_model]
         # editing_casual_mask.shape = [b, p_len, t_len]
-        edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, editing_casual_mask)  # [b, p_len, d_model]
+        edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs,
+                                                     editing_casual_mask)  # [b, p_len, d_model]
         # print('edit_outputs shape: ', edit_outputs.shape)
         # 原论文是在 editing casual attention 之后添加一个 linear 层将输出映射到 p_vocab_size 维度
         # 这里使用推荐的与目标输出的 embedding table 相乘将输出映射到 p_vocab_size 维度, 无需添加 softmax !
@@ -354,25 +366,19 @@ class Glossification(nn.Module):
 
 if __name__ == '__main__':
     i_vocab_size = 100
-    t_vocab_size = 200
     p_vocab_size = 300
     src_pad_idx = 99
-    trg_pad_idx = 199
     pro_pad_idx = 299
     head_num = 10
-    model = Glossification(i_vocab_size=i_vocab_size,
-                           p_vocab_size=p_vocab_size,
-                           t_vocab_size=t_vocab_size,
-                           src_pad_idx=src_pad_idx,
-                           trg_pad_idx=trg_pad_idx,
-                           pro_pad_idx=pro_pad_idx,
-                           head_num=head_num,
-                           share_target_embeddings=False)
-    i_len, t_len, p_len = 10, 20, 30
+    model = Generator(i_vocab_size=i_vocab_size,
+                      p_vocab_size=p_vocab_size,
+                      src_pad_idx=src_pad_idx,
+                      pro_pad_idx=pro_pad_idx,
+                      head_num=head_num,
+                      share_target_embeddings=False)
+    i_len, p_len = 10, 20
     batch_size = 5
     inputs = torch.randint(0, i_vocab_size, [batch_size, i_len])
-    target = torch.randint(0, t_vocab_size, [batch_size, t_len])
     program = torch.randint(0, p_vocab_size, [batch_size, p_len])
-    editing_casual_mask = torch.triu(torch.ones([batch_size, p_len, t_len], dtype=torch.uint8), diagonal=1) == 1
-    outputs = model(inputs, target, program, editing_casual_mask)
+    outputs = model(inputs, program)
     print(outputs.shape)  # [batch_size, p_len, p_vocab_size]

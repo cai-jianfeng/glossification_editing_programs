@@ -29,22 +29,22 @@ class CSL_Dataset(Dataset):
         else:
             self.tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
 
-        if dataset_file is not None and editing_casual_mask_file is not None:
+        if dataset_file is not None:
+            # assert editing_casual_mask_file is not None, 'the editing casual mask file must provided !'
             with open(dataset_file, 'r', encoding='utf-8') as f:
                 data_lines = f.readlines()
-            editing_casual_mask = np.load(editing_casual_mask_file)
+            # editing_casual_mask = np.load(editing_casual_mask_file)
 
             self.data_lines = data_lines
             self.data_lines_split = [data_line.split('|') for data_line in self.data_lines[1:]]
-            self.data_lines_gloss = [data_line[3] for data_line in self.data_lines_split]
-            self.data_lines_sentence = [data_line[4] for data_line in self.data_lines_split]
-            self.data_lines_editing_program = [data_line[7] for data_line in self.data_lines_split]
-            self.editing_casual_mask = editing_casual_mask
+            self.data_lines_gloss = [data_line[3].replace(' ', '') for data_line in self.data_lines_split]
+            self.data_lines_sentence = [data_line[4].replace(' ', '') for data_line in self.data_lines_split]
+            self.data_lines_editing_program = [data_line[7].replace(' ', '') for data_line in self.data_lines_split]
+            # self.editing_casual_mask = editing_casual_mask
 
-            self.data_sentence_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_sentence)]
-            self.data_gloss_token = [torch.tensor(token.ids) for token in self.tokenize(self.data_lines_gloss)]
-            self.data_editing_program_token = [torch.tensor(token.ids) for token in
-                                               self.tokenize(self.data_lines_editing_program)]
+            self.data_sentence_token = [token.ids for token in self.tokenize(self.data_lines_sentence)]
+            self.data_gloss_token = [token.ids for token in self.tokenize(self.data_lines_gloss)]
+            self.data_editing_program_token = [token.ids for token in self.tokenize(self.data_lines_editing_program)]
             # for i, data_edit in enumerate(self.data_editing_program_token):
             #     if data_edit[-1] != self.get_pad_id():
             #         print(i, '; ', len(data_edit))
@@ -56,10 +56,10 @@ class CSL_Dataset(Dataset):
         :return: dict(tensor(int), tensor(int), tensor(int), np.array(data_num, max_program_length, max_gloss_length)) -> (sentence token indexes, gloss token indexes, editing program token indexes, editing casual mask)
         """
         return {
-            'src': self.data_sentence_token[item],
-            'trg': self.data_gloss_token[item],
-            'pro': self.data_editing_program_token[item],
-            'editing_casual_mask': self.editing_casual_mask[item]
+            'src': np.array(self.data_sentence_token[item], dtype=np.int64),
+            'trg': np.array(self.data_gloss_token[item], dtype=np.int64),
+            'pro': np.array(self.data_editing_program_token[item], dtype=np.int64),
+            # 'editing_casual_mask': self.editing_casual_mask[item]
         }
 
     def __len__(self):

@@ -98,6 +98,8 @@ class MultiHeadAttention(nn.Module):
         q.mul_(self.scale)
         x = torch.matmul(q, k)  # [b, h, q_len, k_len]
         if mask is not None:
+            # mask.shape = [b, 1, q_len]
+            # mask.shape = [1, p_len, p_len]
             x.masked_fill_(mask.unsqueeze(1), -1e9)
         x = torch.softmax(x, dim=3)  # softmax in k_len
         x = self.att_dropout(x)
