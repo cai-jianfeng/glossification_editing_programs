@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 set_proxy()
 
-dataset_file = '../CSL_data/CSL-Daily_editing_chinese.txt'
+dataset_file = '../CSL_data/CSL-Daily_editing_chinese_test.txt'
 model_name = "bert-base-chinese"
 
 CSL_dataset = CSL_Dataset(dataset_file=dataset_file,
@@ -30,4 +30,9 @@ CSL_dataset = CSL_Dataset(dataset_file=dataset_file,
 # test_data = CSL_dataset[0]
 # print(test_data)
 
-print(CSL_dataset.get_pad_id())
+# print(CSL_dataset.get_token_id('加'))
+# print(CSL_dataset.get_token_id('删'))
+# print(CSL_dataset.get_token_id('贴'))
+# print(CSL_dataset.get_token_id('过'))
+
+print(CSL_dataset.decode([[101, 6585, 125, 1160, 123, 6585, 123, 1160, 128, 6585, 122, 1160, 127, 1217, 1914, 1217, 1069, 1217, 6637, 1217, 752, 1217, 2658, 1217, 1139, 123, 6814, 102, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]))

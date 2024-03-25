@@ -69,6 +69,7 @@ def summarize_train(writer, global_step, last_time, opt,
 
 
 def train(model, dataloader, optimizer, opt, device, writer, global_step):
+    torch.autograd.set_detect_anomaly(True)
     model = model.to(device)
     model.train()
     last_time = time.time()
@@ -83,20 +84,24 @@ def train(model, dataloader, optimizer, opt, device, writer, global_step):
         src = batch_data['src'].to(device)
         trg = batch_data['trg'].to(device)
         pro = batch_data['pro'].to(device)
+        for p in pro.tolist():
+            for i in range(1, len(p), 2):
+                if p[i] not in [1217, 1160, 6585, 6814, 0]:
+                    print(p)
+                    break
         # print(pro.dtype)
         # editing_casual_mask = batch_data['editing_casual_mask'].to(device)
         pred_edit_op, pred_edit_num = model(src, pro)
 
         pred_edit_op = pred_edit_op.view(-1, pred_edit_op.size(-1))  # [b * p_len/2, edit_op_num]
         pred_edit_num = pred_edit_num.view(-1, pred_edit_num.size(-1))  # [b * p_len/2, p_vocab_size]
-        ans_edit_op = pro[:, 1::2].reshape(-1)  # [b * p_len/2]
+        ans_edit_op = pro[:, 1::2].contiguous().view(-1)  # [b * p_len/2]
         # 将 ans_edit_op由 tokenize 得到的 p_vocab_size 转化为 edit_num
         ans_edit_op[ans_edit_op == opt.pro_pad_idx] = opt.edit_num
         for i in range(opt.edit_num):
             ans_edit_op[ans_edit_op == opt.edit_op[i]] = i
 
-        ans_edit_num = pro[:, ::2].reshape(-1)  # [b * p_len/2]
-
+        ans_edit_num = pro[:, ::2].contiguous().view(-1)  # [b * p_len/2]
         loss = get_loss(pred_edit_num, ans_edit_num, opt.p_vocab_size, opt.label_smoothing, opt.pro_pad_idx) + \
                F.cross_entropy(pred_edit_op, ans_edit_op, ignore_index=opt.edit_num)
         # print(loss.item())
@@ -214,7 +219,7 @@ def main():
     arg.add_argument('--dataset', type=str, default='CSL')
     arg.add_argument('--dataset_path', type=str, default='./CSL_data/')
     arg.add_argument('--tokenizer', type=str, default='bert-base-chinese')
-    arg.add_argument('--batch_size', type=int, default=4)
+    arg.add_argument('--batch_size', type=int, default=64)
     arg.add_argument('--head_num', type=int, default=10)
     arg.add_argument('--inner_size', type=int, default=1024)
     arg.add_argument('--dropout_rate', type=float, default=0.1)

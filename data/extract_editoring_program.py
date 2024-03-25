@@ -117,7 +117,10 @@ def compress_trajectory(edit_program):
     while i < length and j <= length:
         if j >= length:
             if num > 1:
-                new_edit_program.append(edit_program[i] + " %d" % num)
+                if '加' in edit_program[i]:
+                    new_edit_program.extend([edit_program[i] for _ in range(num)])
+                else:
+                    new_edit_program.append(edit_program[i] + " %d" % num)
             else:
                 # if 'Add' in edit_program[i]:
                 if '加' in edit_program[i]:
@@ -129,7 +132,10 @@ def compress_trajectory(edit_program):
             num += 1
             j += 1
         elif num > 1:
-            new_edit_program.append(edit_program[i] + " %d" % num)
+            if '加' in edit_program[i]:
+                new_edit_program.extend([edit_program[i] for _ in range(num)])
+            else:
+                new_edit_program.append(edit_program[i] + " %d" % num)
             i = j
             num = 0
         else:
