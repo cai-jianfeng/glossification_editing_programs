@@ -84,11 +84,7 @@ def train(model, dataloader, optimizer, opt, device, writer, global_step):
         src = batch_data['src'].to(device)
         trg = batch_data['trg'].to(device)
         pro = batch_data['pro'].to(device)
-        for p in pro.tolist():
-            for i in range(1, len(p), 2):
-                if p[i] not in [1217, 1160, 6585, 6814, 0]:
-                    print(p)
-                    break
+
         # print(pro.dtype)
         # editing_casual_mask = batch_data['editing_casual_mask'].to(device)
         pred_edit_op, pred_edit_num = model(src, pro)
