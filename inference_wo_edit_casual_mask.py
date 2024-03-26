@@ -28,14 +28,14 @@ def execute(input: str, program: str):
     # print(program, '; ', input)
     i, p = 0, 0
     target = ''
-    while i < len(program) and p < len(input):
+    while i < len(program):
         if program[i] == '加':
             target += program[i+1]
             i += 2
-        elif program[i] == '删':
+        elif program[i] == '删' and p < len(input):
             p += int(program[i + 1])
             i += 2
-        elif program[i] == '贴':
+        elif program[i] == '贴' and p < len(input):
             num = min(int(program[i + 1]), len(input) - p)
             target += input[p:p + num]
             p += num
@@ -68,6 +68,8 @@ def inference(model, inputs, max_output_len, dataset, opt):
                     programs[-2] = opt.edit_op[2] if programs[-2] == opt.edit_op[0] else programs[-2]
                 elif pred not in opt.edit_num and programs[-2] != opt.edit_op[0]:
                     pred = opt.edit_num[0]
+                # elif programs[-2] == opt.edit_op[0] and pred in opt.edit_num:
+                #     programs[-2] = opt.edit_op[2]
         programs.insert(-1, pred)
         if pred in [end_id, opt.edit_op[-1]]:
             break
@@ -83,7 +85,7 @@ def main():
     args.add_argument('--input', type=str, required=True)
     args.add_argument('--dataset_path', type=str, default='./CSL_data/CSL-Daily_editing_chinese_test.txt')
     args.add_argument('--tokenizer_name', type=str, default='bert-base-chinese')
-    args.add_argument('--max_output_len', type=int, default=20)
+    args.add_argument('--max_output_len', type=int, default=50)
     infere_opt = args.parse_args()
 
     model = torch.load(infere_opt.trained_model, map_location=torch.device('cpu'))
