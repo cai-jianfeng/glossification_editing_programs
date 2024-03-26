@@ -103,6 +103,14 @@ class Generator(nn.Module):
         # return dec_output  # [b, p_len, d_model]
         dec_output_edit_op = dec_output[:, 1::2, :]  # [b, p_len/2, d_model]
         dec_output_edit_num = dec_output[:, ::2, :]  # [b, p_len/2, d_model]
+        # if dec_output_edit_op.shape.numel() != 0:
+        #     edit_op = self.linear_edit_op(dec_output_edit_op)
+        # else:
+        #     edit_op = None
+        # if dec_output_edit_num.shape.numel() != 0:
+        #     edit_num = self.linear_edit_num(dec_output_edit_num)
+        # else:
+        #     edit_num = None
         edit_op = self.linear_edit_op(dec_output_edit_op)
         edit_num = self.linear_edit_num(dec_output_edit_num)
         return edit_op, edit_num
@@ -131,7 +139,8 @@ class Generator(nn.Module):
         program_embedded = F.pad(program_embedded, (0, 0, 1, 0))  # [b, p_len, d_model]
 
         program_embedded *= self.emb_scale  # [b, p_len, d_model]
-        program_embedded += self.get_position_encoding(programs)  # [b, p_len, d_model]
+        # program_embedded += self.get_position_encoding(programs)  # [b, p_len, d_model]
+        program_embedded += self.get_position_encoding(program_embedded)  # [b, p_len, d_model]
         program_embedded = self.p_emb_dropout(program_embedded)  # [b, p_len, d_model]
 
         # decoder
