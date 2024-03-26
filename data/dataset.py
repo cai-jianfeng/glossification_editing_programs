@@ -34,6 +34,10 @@ class CSL_Dataset(Dataset):
             with open(dataset_file, 'r', encoding='utf-8') as f:
                 data_lines = f.readlines()
             # editing_casual_mask = np.load(editing_casual_mask_file)
+            if editing_casual_mask_file is not None:
+                self.editing_casual_mask = np.load(editing_casual_mask_file)
+            else:
+                self.editing_casual_mask = {}
 
             self.data_lines = data_lines
             self.data_lines_split = [data_line.split('|') for data_line in self.data_lines[1:]]
@@ -55,11 +59,13 @@ class CSL_Dataset(Dataset):
         :param item: type: int -> the index of data in dataset
         :return: dict(tensor(int), tensor(int), tensor(int), np.array(data_num, max_program_length, max_gloss_length)) -> (sentence token indexes, gloss token indexes, editing program token indexes, editing casual mask)
         """
+        if self.editing_casual_mask.get(item, None) is None:
+            self.editing_casual_mask[item] = self.get_editing_casual_mask(self.data_editing_program_token[item], self.data_gloss_token[item])
         return {
             'src': np.array(self.data_sentence_token[item], dtype=np.int64),
             'trg': np.array(self.data_gloss_token[item], dtype=np.int64),
             'pro': np.array(self.data_editing_program_token[item], dtype=np.int64),
-            # 'editing_casual_mask': self.editing_casual_mask[item]
+            'editing_casual_mask': self.editing_casual_mask[item]
         }
 
     def __len__(self):
@@ -129,3 +135,34 @@ class CSL_Dataset(Dataset):
             'trg': self.data_gloss_token[0].shape[0],
             'pro': self.data_editing_program_token[0].shape[0],
         }
+
+    def get_editing_casual_mask(self, program, target):
+        mask = np.ones([len(program), len(target)])
+        p = 1
+        mask[0, :p] = 0
+        for i in range(1, 2, len(program)):
+            if program == self.get_token_id('加'):
+                mask[i, :p] = 0
+                mask[i+1: p] = 0
+                p += 1
+            elif program == self.get_token_id('贴'):
+                mask[i, :p] = 0
+                mask[i + 1: p] = 0
+                p += program[i + 1]
+            elif program == self.get_token_id('删'):
+                mask[i, :p] = 0
+                mask[i + 1: p] = 0
+
+        return mask == 1
+
+
+if __name__ == '__main__':
+    program = '[CLS] 贴 1 删'
+    gloss = '[CLS] 你'
+    '''
+    mask = 
+    0 1 预测 [CLS]
+    0 1 预测 [贴]
+    0 1 预测 [1]
+    0 0 预测 [删]
+    '''

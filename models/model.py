@@ -85,8 +85,8 @@ class Generator(nn.Module):
 
         # For positional encoding
         self.position_embedding()
-        self.linear_edit_op = nn.Linear(hidden_size, edit_op_num)
-        self.linear_edit_num = nn.Linear(hidden_size, p_vocab_size)
+        # self.linear_edit_op = nn.Linear(hidden_size, edit_op_num)
+        # self.linear_edit_num = nn.Linear(hidden_size, p_vocab_size)
 
     def forward(self, inputs, programs):
         # inputs.shape = [b, i_len]
@@ -100,20 +100,7 @@ class Generator(nn.Module):
         program_size = programs.size()[1]  # p_len
         p_self_mask = utils.create_trg_self_mask(program_size, device=programs.device)  # [1, p_len, p_len]
         dec_output = self.decode(programs, enc_output, i_mask, p_self_mask, p_mask)  # [b, p_len, d_model]
-        # return dec_output  # [b, p_len, d_model]
-        dec_output_edit_op = dec_output[:, 1::2, :]  # [b, p_len/2, d_model]
-        dec_output_edit_num = dec_output[:, ::2, :]  # [b, p_len/2, d_model]
-        # if dec_output_edit_op.shape.numel() != 0:
-        #     edit_op = self.linear_edit_op(dec_output_edit_op)
-        # else:
-        #     edit_op = None
-        # if dec_output_edit_num.shape.numel() != 0:
-        #     edit_num = self.linear_edit_num(dec_output_edit_num)
-        # else:
-        #     edit_num = None
-        edit_op = self.linear_edit_op(dec_output_edit_op)
-        edit_num = self.linear_edit_num(dec_output_edit_num)
-        return edit_op, edit_num
+        return dec_output  # [b, p_len, d_model]
 
     def encode(self, inputs, i_mask):
         input_embedded = self.i_vocab_embedding(inputs)  # [b, i_len, d_model]
@@ -148,6 +135,20 @@ class Generator(nn.Module):
         decoder_output = self.decoder(program_embedded, enc_output, i_mask, p_self_mask)  # [b, p_len, d_model]
 
         return decoder_output
+
+        # dec_output_edit_op = decoder_output[:, 1::2, :]  # [b, p_len/2, d_model]
+        # dec_output_edit_num = decoder_output[:, ::2, :]  # [b, p_len/2, d_model]
+        # # if dec_output_edit_op.shape.numel() != 0:
+        # #     edit_op = self.linear_edit_op(dec_output_edit_op)
+        # # else:
+        # #     edit_op = None
+        # # if dec_output_edit_num.shape.numel() != 0:
+        # #     edit_num = self.linear_edit_num(dec_output_edit_num)
+        # # else:
+        # #     edit_num = None
+        # edit_op = self.linear_edit_op(dec_output_edit_op)
+        # edit_num = self.linear_edit_num(dec_output_edit_num)
+        # return edit_op, edit_num
 
     def position_embedding(self):
         num_timescales = self.hidden_size // 2
@@ -274,6 +275,7 @@ class Glossification(nn.Module):
                  generator_encoder_n_layers=3,
                  generator_decoder_n_layers=1,
                  executor_encoder_n_layers=1,
+                 edit_op_num=4,
                  share_target_embeddings=True,
                  use_pre_trained_embedding=False,
                  pre_trained_embedding=None
@@ -292,6 +294,7 @@ class Glossification(nn.Module):
         :param generator_encoder_n_layers: int, the layer number of the generator encoder
         :param generator_decoder_n_layers: int, the layer number of the generator decoder
         :param executor_encoder_n_layers: int, the layer number of the executor encoder
+        :param edit_op_num: int, the editing operator number
         :param share_target_embeddings: bool, whether the inputs and outputs embedding is the same
         :param use_pre_trained_embedding: bool, whether using the pre-trained embedding table
         :param pre_trained_embedding: torch.nn.modules.sparse.Embedding, the pre-trained embedding table. It must be offered if use_pre_trained_embedding is True.
@@ -308,6 +311,7 @@ class Glossification(nn.Module):
                                    generator_decoder_n_layers,
                                    src_pad_idx,
                                    pro_pad_idx,
+                                   edit_op_num,
                                    share_target_embeddings,
                                    use_pre_trained_embedding,
                                    pre_trained_embedding)
@@ -324,6 +328,8 @@ class Glossification(nn.Module):
                                             dropout_rate,
                                             head_num)
         self.linear = nn.Linear(hidden_size, p_vocab_size)
+        self.linear_edit_op = nn.Linear(hidden_size, edit_op_num)
+        self.linear_edit_num = nn.Linear(hidden_size, p_vocab_size)
 
     def forward_origin(self, inputs, targets, programs):
         # inputs.shape = [b, i_len]
@@ -353,17 +359,29 @@ class Glossification(nn.Module):
         # gen_outputs.shape = [b, p_len, d_model]
         # exc_outputs.shape = [b, t_len, d_model]
         # editing_casual_mask.shape = [b, p_len, t_len]
-        edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs,
-                                                     editing_casual_mask)  # [b, p_len, d_model]
+        edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, editing_casual_mask)  # [b, p_len, d_model]
         # print('edit_outputs shape: ', edit_outputs.shape)
         # 原论文是在 editing casual attention 之后添加一个 linear 层将输出映射到 p_vocab_size 维度
         # 这里使用推荐的与目标输出的 embedding table 相乘将输出映射到 p_vocab_size 维度, 无需添加 softmax !
         # edit_outputs = self.linear(edit_outputs)  # [b, p_len, p_vocab_size]
         # linear
         # [b, p_len, d_model] * [d_model, p_vocab_size]
-        output = torch.matmul(edit_outputs,
-                              self.generator.p_vocab_embedding.weight.transpose(0, 1))  # [b, p_len, p_vocab_size]
-        return output  # [b, p_len, p_vocab_size]
+        dec_output_edit_op = edit_outputs[:, 1::2, :]  # [b, p_len/2, d_model]
+        dec_output_edit_num = edit_outputs[:, ::2, :]  # [b, p_len/2, d_model]
+        # if dec_output_edit_op.shape.numel() != 0:
+        #     edit_op = self.linear_edit_op(dec_output_edit_op)
+        # else:
+        #     edit_op = None
+        # if dec_output_edit_num.shape.numel() != 0:
+        #     edit_num = self.linear_edit_num(dec_output_edit_num)
+        # else:
+        #     edit_num = None
+        edit_op = self.linear_edit_op(dec_output_edit_op)
+        edit_num = self.linear_edit_num(dec_output_edit_num)
+        return edit_op, edit_num
+        # output = torch.matmul(edit_outputs,
+        #                       self.generator.p_vocab_embedding.weight.transpose(0, 1))  # [b, p_len, p_vocab_size]
+        # return output  # [b, p_len, p_vocab_size]
 
     def editing_causal_attention(self, inputs, targets, d_mask):
         # inputs.shape = [b, p_len, d_model]

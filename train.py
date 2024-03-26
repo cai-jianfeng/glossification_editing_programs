@@ -8,6 +8,7 @@
 """
 import torch
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from optimizer import LRScheduler
 from transformers import AutoModel
 
@@ -30,7 +31,7 @@ set_proxy()
 
 
 def summarize_train(writer, global_step, last_time, opt,
-                    inputs, targets, programs, optimizer, loss, pred, ans):
+                    inputs, targets, programs, optimizer, loss, pred_edit_op, ans_edit_op, pred_edit_num, ans_edit_num):
     writer.add_scalar('input_stats/batch_size',
                       targets.size(0), global_step)
 
@@ -57,7 +58,8 @@ def summarize_train(writer, global_step, last_time, opt,
 
     writer.add_scalar('loss', loss.item(), global_step)
 
-    acc = get_accuracy(pred, ans, opt.pro_pad_idx)
+    acc = (get_accuracy(pred_edit_num, ans_edit_num, opt.pro_pad_idx) +
+           get_accuracy(pred_edit_op, ans_edit_op, opt.edit_num)) / 2
     writer.add_scalar('training/accuracy',
                       acc, global_step)
 
@@ -82,13 +84,19 @@ def train(model, dataloader, optimizer, opt, device, writer, global_step):
         trg = batch_data['trg'].to(device)
         pro = batch_data['pro'].to(device)
         editing_casual_mask = batch_data['editing_casual_mask'].to(device)
-        pred = model(src, trg, pro, editing_casual_mask)
+        pred_edit_op, pred_edit_num = model(src, trg, pro, editing_casual_mask)
 
-        pred = pred.view(-1, pred.size(-1))  # [b * p_len, p_vocab_size]
-        ans = pro.view(-1)  # [b * p_len]
+        pred_edit_op = pred_edit_op.view(-1, pred_edit_op.size(-1))  # [b * p_len/2, edit_op_num]
+        pred_edit_num = pred_edit_num.view(-1, pred_edit_num.size(-1))  # [b * p_len/2, p_vocab_size]
+        ans_edit_op = pro[:, 1::2].contiguous().view(-1)  # [b * p_len/2]
+        # 将 ans_edit_op由 tokenize 得到的 p_vocab_size 转化为 edit_num
+        ans_edit_op[ans_edit_op == opt.pro_pad_idx] = opt.edit_num
+        for i in range(opt.edit_num):
+            ans_edit_op[ans_edit_op == opt.edit_op[i]] = i
 
-        loss = get_loss(pred, ans, opt.p_vocab_size,
-                        opt.label_smoothing, opt.pro_pad_idx)
+        ans_edit_num = pro[:, ::2].contiguous().view(-1)  # [b * p_len/2]
+        loss = get_loss(pred_edit_num, ans_edit_num, opt.p_vocab_size, opt.label_smoothing, opt.pro_pad_idx) + \
+               F.cross_entropy(pred_edit_op, ans_edit_op, ignore_index=opt.edit_num)
         # print(loss.item())
         optimizer.zero_grad()
         loss.backward()
@@ -96,7 +104,7 @@ def train(model, dataloader, optimizer, opt, device, writer, global_step):
 
         if global_step % 100 == 0:
             summarize_train(writer, global_step, last_time, opt,
-                            src, trg, pro, optimizer, loss, pred, ans)
+                            src, trg, pro, optimizer, loss, pred_edit_op, ans_edit_op, pred_edit_num, ans_edit_num)
             last_time = time.time()
 
         pbar.set_description('[Loss: {:.4f}]'.format(loss.item()))
@@ -115,6 +123,7 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
     total_bleu4_score = 0
     rouge = Rouge()
     total_rouge_l = 0
+    total_acc = 0
     for batch_data in dataloader:
         src = batch_data['src'].to(device)
         trg = batch_data['trg'].to(device)
@@ -122,10 +131,29 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
         editing_casual_mask = batch_data['editing_casual_mask'].to(device)
 
         with torch.no_grad():
-            pred = model(src, trg, pro, editing_casual_mask)  # [b, p_len, p_vocab_size]
-            pred_index = torch.argmax(pred, dim=-1).tolist()  # [b, p_len]
-            pro_index = pro.tolist()  # [b, p_len]
-            rouge_l = sum([score['rouge-l']['f'] for score in rouge.get_scores(["".join(str(index) for index in pre_index) for pre_index in pred_index], ["".join(str(index) for index in pr_index) for pr_index in pro_index])])
+            pred_edit_op, pred_edit_num = model(src, trg, pro, editing_casual_mask)  # [b, p_len, p_vocab_size]
+            pred_edit_op_index = torch.argmax(pred_edit_op, dim=-1)  # [b, p_len/2]
+            pred_edit_num_index = torch.argmax(pred_edit_num, dim=-1)  # [b, p_len/2]
+            pred_index = torch.zeros_like(pro)
+            pred_index[:, 1::2] = pred_edit_op_index
+            pred_index[:, ::2] = pred_edit_num_index
+            pred_index = pred_index.tolist()
+            ans_edit_op = pro[:, 1::2]  # [b, p_len/2]
+            ans_edit_op[ans_edit_op == opt.pro_pad_idx] = opt.edit_num
+            for i in range(opt.edit_num):
+                ans_edit_op[ans_edit_op == opt.edit_op[i]] = i
+            ans_edit_num = pro[:, ::2]
+            pro_index = torch.zeros_like(pro)  # [b, p_len]
+            pro_index[:, 1::2] = ans_edit_op
+            pro_index[:, ::2] = ans_edit_num
+            pro_index = pro_index.tolist()
+            rouge_score = rouge.get_scores([" ".join(str(index) for index in pre_index) for pre_index in pred_index],
+                                           [" ".join(str(index) for index in pr_index) for pr_index in pro_index])
+            assert len(rouge_score) == len(pro_index), \
+                f'the length of rouge_score is {len(rouge_score)}, ' \
+                f'and the length of batch data is {len(batch_data)},' \
+                f'the length of program is {len(pro_index)}'
+            rouge_l = sum([score['rouge-l']['f'] for score in rouge_score])
             pro_index = [[p] for p in pro_index]
             # print(pred.shape, '; ', pro.shape)
             # dataset = dataloader.dataset
@@ -140,28 +168,43 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
             smooth_fun = SmoothingFunction()
             bleu3 = corpus_bleu(pro_index, pred_index, weights=[0.5, 0.5, 0.5], smoothing_function=smooth_fun.method1)
             bleu4 = corpus_bleu(pro_index, pred_index, smoothing_function=smooth_fun.method1)
-            pred = pred.view(-1, pred.size(-1))  # [b * p_len, p_vocab_size]
-            ans = pro.view(-1)  # [b * p_len]
-            loss = get_loss(pred, ans, opt.p_vocab_size, 0, opt.pro_pad_idx)
-        total_bleu3_score += bleu3 * len(batch_data)
-        total_bleu4_score += bleu4 * len(batch_data)
+            pred_edit_op = pred_edit_op.view(-1, pred_edit_op.size(-1))  # [b * p_len/2, edit_op_num]
+            pred_edit_num = pred_edit_num.view(-1, pred_edit_num.size(-1))  # [b * p_len/2, p_vocab_size]
+            ans_edit_op = pro[:, 1::2].reshape(-1)  # [b * p_len/2]
+            # 将 ans_edit_op由 tokenize 得到的 p_vocab_size 转化为 edit_num
+            ans_edit_op[ans_edit_op == opt.pro_pad_idx] = opt.edit_num
+            for i in range(opt.edit_num):
+                ans_edit_op[ans_edit_op == opt.edit_op[i]] = i
+
+            ans_edit_num = pro[:, ::2].reshape(-1)  # [b * p_len/2]
+
+            loss = get_loss(pred_edit_num, ans_edit_num, opt.p_vocab_size, opt.label_smoothing, opt.pro_pad_idx) + \
+                   F.cross_entropy(pred_edit_op, ans_edit_op, ignore_index=opt.edit_num)
+            acc = (get_accuracy(pred_edit_num, ans_edit_num, opt.pro_pad_idx) +
+                   get_accuracy(pred_edit_op, ans_edit_op, opt.edit_num)) / 2
+        total_bleu3_score += bleu3 * len(pro_index)
+        total_bleu4_score += bleu4 * len(pro_index)
         total_rouge_l += rouge_l
-        total_loss += loss.item() * len(batch_data)
-        total_cnt += len(batch_data)
+        total_loss += loss.item() * len(pro_index)
+        total_acc += acc * len(pro_index)
+        total_cnt += len(pro_index)
 
     val_loss = total_loss / total_cnt
     total_bleu3_score = total_bleu3_score / total_cnt
     total_bleu4_score = total_bleu4_score / total_cnt
     total_rouge_l = total_rouge_l / total_cnt
+    total_acc = total_acc / total_cnt
     print("Validation Loss: ", val_loss)
     print("total bleu3 score: ", total_bleu3_score)
     print("total bleu4 score: ", total_bleu4_score)
     print("total rouge-l score: ", total_rouge_l)
+    print("total accuracy score: ", total_acc)
     val_writer.add_scalar('loss', val_loss, global_step)
     val_writer.add_scalar('bleu3 score', total_bleu3_score, global_step)
     val_writer.add_scalar('bleu4 score', total_bleu4_score, global_step)
     val_writer.add_scalar('rouge-l score', total_rouge_l, global_step)
-    return val_loss, total_bleu3_score, total_bleu4_score, total_rouge_l
+    val_writer.add_scalar('accuracy score', total_acc, global_step)
+    return val_loss, total_bleu3_score, total_bleu4_score, total_rouge_l, total_acc
 
 
 def main():
@@ -186,7 +229,7 @@ def main():
     opt = arg.parse_args()
     if opt.dataset == 'CSL':
         dataset_file = os.path.join(opt.dataset_path, 'CSL-Daily_editing_chinese_test.txt')
-        editing_casual_mask_file = os.path.join(opt.dataset_path, 'editing_casual_mask_CSL_174_40_test.npy')
+        # editing_casual_mask_file = os.path.join(opt.dataset_path, 'editing_casual_mask_CSL_174_40_test.npy')
     else:
         assert True, 'Currently only the CSL datasets is supported !'
 
@@ -195,7 +238,7 @@ def main():
     tokenizer_model_name = opt.tokenizer
 
     CSL_dataset = CSL_Dataset(dataset_file=dataset_file,
-                              editing_casual_mask_file=editing_casual_mask_file,
+                              # editing_casual_mask_file=editing_casual_mask_file,
                               pre_trained_tokenizer=True,
                               tokenizer_name=tokenizer_model_name)
 
@@ -216,14 +259,16 @@ def main():
     executor_encoder_n_layers = opt.executor_encoder_n_layers
     share_target_embeddings = opt.share_target_embeddings
     use_pre_trained_embedding = opt.use_pre_trained_embedding
-
+    edit_op_num = 4
     opt.i_vocab_size = CSL_dataset.get_vocab_size()
     opt.src_pad_idx = CSL_dataset.get_pad_id()
     opt.t_vocab_size = CSL_dataset.get_vocab_size()
     opt.trg_pad_idx = CSL_dataset.get_pad_id()
     opt.p_vocab_size = CSL_dataset.get_vocab_size()
     opt.pro_pad_idx = CSL_dataset.get_pad_id()
-
+    opt.edit_num = edit_op_num
+    opt.edit_op = [CSL_dataset.get_token_id('加'), CSL_dataset.get_token_id('删'), CSL_dataset.get_token_id('贴'),
+                   CSL_dataset.get_token_id('过')]
     model = Glossification(CSL_dataset.get_vocab_size(),
                            CSL_dataset.get_vocab_size(),
                            CSL_dataset.get_vocab_size(),
@@ -237,6 +282,7 @@ def main():
                            generator_encoder_n_layers=generator_encoder_n_layers,
                            generator_decoder_n_layers=generator_decoder_n_layers,
                            executor_encoder_n_layers=executor_encoder_n_layers,
+                           edit_op_num=edit_op_num,
                            share_target_embeddings=share_target_embeddings,
                            use_pre_trained_embedding=use_pre_trained_embedding,
                            pre_trained_embedding=embeddings_table)
@@ -262,6 +308,7 @@ def main():
     best_total_bleu3 = 0
     best_total_bleu4 = 0
     best_total_rouge_l = 0
+    best_total_acc = 0
     print('train begin !')
     for epoch in range(opt.train_epochs):
         print('Epoch: ', epoch)
@@ -269,13 +316,15 @@ def main():
         global_step = train(model, CSL_dataloader, Adam_optimizer, opt, device, writer, global_step)
         print("Epoch Time: {:.2f} sec".format(time.time() - start_epoch_time))
 
-        val_loss, total_bleu3, total_bleu4, total_rouge_l = validation(CSL_dataloader, model, global_step, val_writer, opt, device)
+        val_loss, total_bleu3, total_bleu4, total_rouge_l, total_acc = validation(CSL_dataloader, model, global_step,
+                                                                                  val_writer, opt, device)
         save_checkpoint(model, opt.output_dir + '/last/models',
                         global_step, val_loss < best_val_loss)
         best_val_loss = min(val_loss, best_val_loss)
         best_total_bleu3 = max(best_total_bleu3, total_bleu3)
         best_total_bleu4 = max(best_total_bleu3, total_bleu4)
         best_total_rouge_l = max(best_total_rouge_l, total_rouge_l)
+        best_total_acc = max(best_total_acc, total_acc)
 
     writer.close()
     val_writer.close()
@@ -289,11 +338,13 @@ def main():
     print('total best bleu3: ', best_total_bleu3)
     print('total best bleu4: ', best_total_bleu4)
     print('total best rouge-l: ', best_total_rouge_l)
+    print('total best accuracy: ', best_total_acc)
 
     with open(os.path.join(opt.output_dir, 'result.txt'), 'w', encoding='utf-8') as f:
         f.write(f'total best bleu3: {best_total_bleu3}\n')
         f.write(f'total best bleu4: {best_total_bleu4}\n')
         f.write(f'total best rouge-l: {best_total_rouge_l}\n')
+        f.write(f'total best accuracy: {best_total_acc}\n')
 
 
 if __name__ == '__main__':
