@@ -25,11 +25,10 @@ def execute(input: str, program: str):
     """
     program = program.replace(' ', '')
     input = input.replace(' ', '')
-    print(program, '; ', input)
+    # print(program, '; ', input)
     i, p = 0, 0
     target = ''
     while i < len(program) and p < len(input):
-        print(program[i])
         if program[i] == '加':
             target += program[i+1]
             i += 2
@@ -37,9 +36,7 @@ def execute(input: str, program: str):
             p += int(program[i + 1])
             i += 2
         elif program[i] == '贴':
-            print(int(program[i + 1]))
             num = min(int(program[i + 1]), len(input) - p)
-            print(num)
             target += input[p:p + num]
             p += num
             i += 2
@@ -93,7 +90,7 @@ def main():
     CSL_dataset = CSL_Dataset(dataset_file=infere_opt.dataset_path,
                               pre_trained_tokenizer=True,
                               tokenizer_name=infere_opt.tokenizer_name)
-    src = infere_opt.input
+    src = infere_opt.input.replace(' ', '')
     infere_opt.edit_op = [CSL_dataset.get_token_id('加'),
                           CSL_dataset.get_token_id('删'),
                           CSL_dataset.get_token_id('贴'),
@@ -108,6 +105,7 @@ def main():
                            CSL_dataset.get_token_id('8'),
                            CSL_dataset.get_token_id('9')]
     print('model load succeed !')
+    print('the origin sentence: ', src)
     max_output_len = infere_opt.max_output_len
     program = inference(model, src, max_output_len, CSL_dataset, infere_opt)
     print('the predicted editing program: ', program)
