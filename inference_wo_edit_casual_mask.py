@@ -65,6 +65,7 @@ def inference(model, inputs, max_output_len, dataset, opt):
             if i != 0:
                 if pred == begin_id:
                     pred = opt.edit_num[0]
+                    programs[-2] = opt.edit_op[2] if programs[-2] == opt.edit_op[0] else programs[-2]
                 elif pred not in opt.edit_num and programs[-2] != opt.edit_op[0]:
                     pred = opt.edit_num[0]
         programs.insert(-1, pred)
