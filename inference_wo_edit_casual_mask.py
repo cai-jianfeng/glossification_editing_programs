@@ -61,15 +61,23 @@ def inference(model, inputs, max_output_len, dataset, opt):
             pred = torch.argmax(pred_edit_op[-1], dim=-1).item()
             pred = opt.edit_op[pred]
         else:
-            pred = torch.argmax(pred_edit_num[-1], dim=-1).item()
             if i != 0:
-                if pred == begin_id:
-                    pred = opt.edit_num[0]
-                    programs[-2] = opt.edit_op[2] if programs[-2] == opt.edit_op[0] else programs[-2]
-                elif pred not in opt.edit_num and programs[-2] != opt.edit_op[0]:
-                    pred = opt.edit_num[0]
-                # elif programs[-2] == opt.edit_op[0] and pred in opt.edit_num:
-                #     programs[-2] = opt.edit_op[2]
+                # program[-1] 是占位符
+                if programs[-2] != opt.edit_op[0]:  # 当前 edit op = '删'/'贴'
+                    pred = opt.edit_num[torch.argmax(pred_edit_num[-1][opt.edit_num], dim=-1).item()]  # 只取 1 ~ 9 中的概率最大值
+                else:  # 当前 edit op = '加'
+                    pred = torch.argmax(pred_edit_num[-1], dim=-1).item()
+                    if pred in [begin_id, end_id]:  # 当 加 后的结果为 [CLS] 和 [SEP]
+                        _, indices = torch.topk(pred_edit_num[-1], k=3, dim=-1)  # 取除了 [CLS] 和 [SEP] 的其他结果
+                        pred = indices[-1] if indices[1] in [begin_id, end_id] else indices[1]  # 前两个结果均为 [CLS] 和 [SEP] 时取第三个结果
+                    #     pred = opt.edit_num[0]
+                    #     programs[-2] = opt.edit_op[2] if programs[-2] == opt.edit_op[0] else programs[-2]
+                    # elif pred not in opt.edit_num and programs[-2] != opt.edit_op[0]:
+                    #     pred = opt.edit_num[0]
+                    # elif programs[-2] == opt.edit_op[0] and pred in opt.edit_num:
+                    #     programs[-2] = opt.edit_op[2]
+            else:  # i=0 时是预测 [CLS]
+                pred = torch.argmax(pred_edit_num[-1], dim=-1).item()
         programs.insert(-1, pred)
         if pred in [end_id, opt.edit_op[-1]]:
             break

@@ -278,7 +278,8 @@ class Glossification(nn.Module):
                  edit_op_num=4,
                  share_target_embeddings=True,
                  use_pre_trained_embedding=False,
-                 pre_trained_embedding=None
+                 pre_trained_embedding=None,
+                 with_editing_casual_mask=True
                  ):
         """
         :param i_vocab_size: int, the vocabulary size of the inputs
@@ -298,9 +299,12 @@ class Glossification(nn.Module):
         :param share_target_embeddings: bool, whether the inputs and outputs embedding is the same
         :param use_pre_trained_embedding: bool, whether using the pre-trained embedding table
         :param pre_trained_embedding: torch.nn.modules.sparse.Embedding, the pre-trained embedding table. It must be offered if use_pre_trained_embedding is True.
+        :param with_editing_casual_mask: bool, whether use the editing casual mask to improve model learning
         """
         super(Glossification, self).__init__()
         self.pre_trained_embedding = pre_trained_embedding
+        self.with_editing_casual_mask = with_editing_casual_mask
+
         self.generator = Generator(i_vocab_size,
                                    p_vocab_size,
                                    head_num,
@@ -315,18 +319,19 @@ class Glossification(nn.Module):
                                    share_target_embeddings,
                                    use_pre_trained_embedding,
                                    pre_trained_embedding)
-        self.executor = Executor(t_vocab_size,
-                                 trg_pad_idx,
-                                 head_num,
-                                 hidden_size,
-                                 inner_size,
-                                 dropout_rate,
-                                 executor_encoder_n_layers,
-                                 use_pre_trained_embedding,
-                                 pre_trained_embedding)
-        self.edit_attn = MultiHeadAttention(hidden_size,
-                                            dropout_rate,
-                                            head_num)
+        if self.with_editing_casual_mask:
+            self.executor = Executor(t_vocab_size,
+                                     trg_pad_idx,
+                                     head_num,
+                                     hidden_size,
+                                     inner_size,
+                                     dropout_rate,
+                                     executor_encoder_n_layers,
+                                     use_pre_trained_embedding,
+                                     pre_trained_embedding)
+            self.edit_attn = MultiHeadAttention(hidden_size,
+                                                dropout_rate,
+                                                head_num)
         self.linear = nn.Linear(hidden_size, p_vocab_size)
         self.linear_edit_op = nn.Linear(hidden_size, edit_op_num)
         self.linear_edit_num = nn.Linear(hidden_size, p_vocab_size)
@@ -347,25 +352,27 @@ class Glossification(nn.Module):
                               self.generator.t_vocab_embedding.weight.transpose(0, 1))  # [b, p_len, p_vocab_size]
         return output  # [b, p_len, p_vocab_size]
 
-    def forward(self, inputs, targets, programs, editing_casual_mask=None):
+    def forward(self, inputs, programs, targets=None, editing_casual_mask=None):
         # inputs.shape = [b, i_len]
         # targets.shape = [b, t_len]
         # programs.shape = [b, p_len]
         gen_outputs = self.generator(inputs, programs)  # [b, p_len, d_model]
-        # print('gen_outputs shape: ', gen_outputs.shape)
-        exc_outputs = self.executor(targets)  # [b, t_len, d_model]
-        # print('exc_outputs shape: ', exc_outputs.shape)
-        # print(gen_outputs.shape, '; ', exc_outputs.shape, '; ', editing_casual_mask.shape)
-        # gen_outputs.shape = [b, p_len, d_model]
-        # exc_outputs.shape = [b, t_len, d_model]
-        # editing_casual_mask.shape = [b, p_len, t_len]
-        edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, editing_casual_mask)  # [b, p_len, d_model]
-        # print('edit_outputs shape: ', edit_outputs.shape)
-        # 原论文是在 editing casual attention 之后添加一个 linear 层将输出映射到 p_vocab_size 维度
-        # 这里使用推荐的与目标输出的 embedding table 相乘将输出映射到 p_vocab_size 维度, 无需添加 softmax !
-        # edit_outputs = self.linear(edit_outputs)  # [b, p_len, p_vocab_size]
-        # linear
-        # [b, p_len, d_model] * [d_model, p_vocab_size]
+        if self.with_editing_casual_mask:
+            assert targets is not None and editing_casual_mask is not None, 'If with_editing_casual_mask is true, you must set targets and editing_casual_mask !'
+            # print('gen_outputs shape: ', gen_outputs.shape)
+            exc_outputs = self.executor(targets)  # [b, t_len, d_model]
+            # print('exc_outputs shape: ', exc_outputs.shape)
+            # print(gen_outputs.shape, '; ', exc_outputs.shape, '; ', editing_casual_mask.shape)
+            # gen_outputs.shape = [b, p_len, d_model]
+            # exc_outputs.shape = [b, t_len, d_model]
+            # editing_casual_mask.shape = [b, p_len, t_len]
+            edit_outputs = self.editing_causal_attention(gen_outputs, exc_outputs, editing_casual_mask)  # [b, p_len, d_model]
+            # print('edit_outputs shape: ', edit_outputs.shape)
+            # 原论文是在 editing casual attention 之后添加一个 linear 层将输出映射到 p_vocab_size 维度
+            # 这里使用推荐的与目标输出的 embedding table 相乘将输出映射到 p_vocab_size 维度, 无需添加 softmax !
+            # edit_outputs = self.linear(edit_outputs)  # [b, p_len, p_vocab_size]
+        else:
+            edit_outputs = gen_outputs
         dec_output_edit_op = edit_outputs[:, 1::2, :]  # [b, p_len/2, d_model]
         dec_output_edit_num = edit_outputs[:, ::2, :]  # [b, p_len/2, d_model]
         # if dec_output_edit_op.shape.numel() != 0:

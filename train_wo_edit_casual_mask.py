@@ -16,7 +16,7 @@ from tensorboardX import SummaryWriter
 from rouge import Rouge
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 
-from models.model import Generator
+from models.model import Glossification
 from data.dataset import CSL_Dataset
 
 from utils import set_proxy, get_loss, get_accuracy, save_checkpoint
@@ -271,20 +271,24 @@ def main():
     opt.edit_num = edit_op_num
     opt.edit_op = [CSL_dataset.get_token_id('加'), CSL_dataset.get_token_id('删'), CSL_dataset.get_token_id('贴'),
                    CSL_dataset.get_token_id('过')]
-    model = Generator(i_vocab_size=CSL_dataset.get_vocab_size(),
-                      p_vocab_size=CSL_dataset.get_vocab_size(),
-                      head_num=head_num,
-                      hidden_size=embeddings_table.weight.shape[1],
-                      inner_size=inner_size,
-                      dropout_rate=dropout_rate,
-                      encoder_n_layers=generator_encoder_n_layers,
-                      decoder_n_layers=generator_decoder_n_layers,
-                      src_pad_idx=CSL_dataset.get_pad_id(),
-                      pro_pad_idx=CSL_dataset.get_pad_id(),
-                      edit_op_num=edit_op_num,
-                      share_target_embeddings=share_target_embeddings,
-                      use_pre_trained_embedding=use_pre_trained_embedding,
-                      pre_trained_embedding=embeddings_table)
+    model = Glossification(CSL_dataset.get_vocab_size(),
+                           CSL_dataset.get_vocab_size(),
+                           CSL_dataset.get_vocab_size(),
+                           src_pad_idx=CSL_dataset.get_pad_id(),
+                           trg_pad_idx=CSL_dataset.get_pad_id(),
+                           pro_pad_idx=CSL_dataset.get_pad_id(),
+                           head_num=head_num,
+                           hidden_size=embeddings_table.weight.shape[1],
+                           inner_size=inner_size,
+                           dropout_rate=dropout_rate,
+                           generator_encoder_n_layers=generator_encoder_n_layers,
+                           generator_decoder_n_layers=generator_decoder_n_layers,
+                           executor_encoder_n_layers=executor_encoder_n_layers,
+                           edit_op_num=edit_op_num,
+                           share_target_embeddings=share_target_embeddings,
+                           use_pre_trained_embedding=use_pre_trained_embedding,
+                           pre_trained_embedding=embeddings_table,
+                           with_editing_casual_mask=False)
     global_step = 0
 
     writer = SummaryWriter(logdir=os.path.join(opt.output_dir, 'last'))

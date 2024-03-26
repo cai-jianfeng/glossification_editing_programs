@@ -84,7 +84,7 @@ def train(model, dataloader, optimizer, opt, device, writer, global_step):
         trg = batch_data['trg'].to(device)
         pro = batch_data['pro'].to(device)
         editing_casual_mask = batch_data['editing_casual_mask'].to(device)
-        pred_edit_op, pred_edit_num = model(src, trg, pro, editing_casual_mask)
+        pred_edit_op, pred_edit_num = model(src, pro, trg, editing_casual_mask)
 
         pred_edit_op = pred_edit_op.view(-1, pred_edit_op.size(-1))  # [b * p_len/2, edit_op_num]
         pred_edit_num = pred_edit_num.view(-1, pred_edit_num.size(-1))  # [b * p_len/2, p_vocab_size]
@@ -131,7 +131,7 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
         editing_casual_mask = batch_data['editing_casual_mask'].to(device)
 
         with torch.no_grad():
-            pred_edit_op, pred_edit_num = model(src, trg, pro, editing_casual_mask)  # [b, p_len, p_vocab_size]
+            pred_edit_op, pred_edit_num = model(src, pro, trg, editing_casual_mask)  # [b, p_len, p_vocab_size]
             pred_edit_op_index = torch.argmax(pred_edit_op, dim=-1)  # [b, p_len/2]
             pred_edit_num_index = torch.argmax(pred_edit_num, dim=-1)  # [b, p_len/2]
             pred_index = torch.zeros_like(pro)
@@ -285,7 +285,8 @@ def main():
                            edit_op_num=edit_op_num,
                            share_target_embeddings=share_target_embeddings,
                            use_pre_trained_embedding=use_pre_trained_embedding,
-                           pre_trained_embedding=embeddings_table)
+                           pre_trained_embedding=embeddings_table,
+                           with_editing_casual_mask=True)
     global_step = 0
 
     writer = SummaryWriter(logdir=os.path.join(opt.output_dir, 'last'))

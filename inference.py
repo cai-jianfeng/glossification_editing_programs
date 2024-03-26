@@ -8,65 +8,89 @@
 """
 import torch
 
-# from models.model import Glossification
 from data.dataset import CSL_Dataset
 import utils
 
-import json
 import argparse
-
 
 utils.set_proxy()
 
 
-def execute(input, part_program, target, add_id, copy_id, zero_id, p):
+def execute(input: str, program: str):
     """
-    通过执行部分生成的 programs 生成对应的 gloss
-    :param input: sentence -> shape = [i_len]
-    :param part_program: min editing programs -> shape = [b, p_len]
-    :param target:
-    :param add_id:
-    :param copy_id:
-    :param zero_id:
-    :param p:
-    :return: corresponding glosses -> shape = [b, t_len]
+    通过执行预测的 program 生成最终的 gloss
+    :param input: sentence: shape: [i_len] -> type: str
+    :param program: editing program: shape: [p_len] -> type: str
+    :return: target gloss: shape: [t_len] -> type: str
     """
-    if part_program[-2] in [add_id, copy_id]:
-        if zero_id <= part_program[-1] <= zero_id + 9:
-            target += input[p: p+part_program[-1]] if p+part_program[-1] < len(input) else input[:]
-            p += min(part_program[-1], len(input) - p)
-        else:
-            target += input[p]
-            p += 1
-    return target, p
+    program = program.replace(' ', '')
+    input = input.replace(' ', '')
+    # print(program, '; ', input)
+    i, p = 0, 0
+    target = ''
+    while i < len(program):
+        if program[i] == '加':
+            target += program[i+1]
+            i += 2
+        elif program[i] == '删' and p < len(input):
+            p += int(program[i + 1])
+            i += 2
+        elif program[i] == '贴' and p < len(input):
+            num = min(int(program[i + 1]), len(input) - p)
+            target += input[p:p + num]
+            p += num
+            i += 2
+        elif program[i] == '过':
+            break
+    return target
 
 
-def inference(model, inputs, max_output_len, dataset):
+def inference(model, inputs, max_output_len, dataset, opt):
+    # [1, i_len]
     input_tokens = torch.tensor(dataset.tokenize([inputs])[0].ids).unsqueeze(0)
-    # print('input shape: ', input_tokens.shape)
     model.eval()
-    # print(inputs.shape, '; ', targets.shape, '; ', programs.shape)
-    # predict = model.forward_origin(inputs, targets, programs)  # [b, p_len, p_vocab_size]
     begin_id = dataset.get_token_id('[CLS]')
     end_id = dataset.get_token_id('[SEP]')
-    programs = [dataset.tokenize([''])[0].ids]
-    target = ''
-    p = 0
-    for _ in range(max_output_len):
-        if p >= len(inputs):
-            break
-        programs_tensor = torch.tensor(programs)
-        target_tokens = torch.tensor(dataset.tokenize([target])[0].ids).unsqueeze(0)
+    programs = [dataset.get_token_id('[CLS]')]  # programs 初始时是占位符
+    target = [dataset.get_token_id('[CLS]')]
+    for i in range(max_output_len):
+        programs_tensor = torch.tensor(programs).unsqueeze(0)
+        target_tensor = torch.tensor(target).unsqueeze(0)
         # print('program shape:', programs_tensor.shape, '; target shape: ', target_tokens.shape)
-        predict = model(input_tokens, programs_tensor, target_tokens)[0]  # [p_len, p_vocab_size]
-        pred = torch.argmax(predict[-1], dim=-1).item()
-        # print(p, '; ', input_tokens.shape[-1])
-        if pred == end_id:
+        pred_edit_op, pred_edit_num = model(input_tokens, programs_tensor, target_tensor, torch.zeros([len(programs), len(target)]) == 1)  # [1, p_len, edit_num/p_vocab_size]
+        pred_edit_op, pred_edit_num = pred_edit_op[0], pred_edit_num[0]  # [p_len, edit_num/p_vocab_size]
+        if i % 2 == 1:
+            pred = torch.argmax(pred_edit_op[-1], dim=-1).item()
+            pred = opt.edit_op[pred]
+        else:
+            if i != 0:
+                # program[-1] 是占位符
+                if programs[-2] != opt.edit_op[0]:  # 当前 edit op = '删'/'贴'
+                    pred = opt.edit_num[torch.argmax(pred_edit_num[-1][opt.edit_num], dim=-1).item()]  # 只取 1 ~ 9 中的概率最大值
+                else:  # 当前 edit op = '加'
+                    pred = torch.argmax(pred_edit_num[-1], dim=-1).item()
+                    if pred in [begin_id, end_id]:  # 当 加 后的结果为 [CLS] 和 [SEP]
+                        _, indices = torch.topk(pred_edit_num[-1], k=3, dim=-1)  # 取除了 [CLS] 和 [SEP] 的其他结果
+                        pred = indices[-1] if indices[1] in [begin_id, end_id] else indices[1]  # 前两个结果均为 [CLS] 和 [SEP] 时取第三个结果
+                    #     pred = opt.edit_num[0]
+                    #     programs[-2] = opt.edit_op[2] if programs[-2] == opt.edit_op[0] else programs[-2]
+                    # elif pred not in opt.edit_num and programs[-2] != opt.edit_op[0]:
+                    #     pred = opt.edit_num[0]
+                    # elif programs[-2] == opt.edit_op[0] and pred in opt.edit_num:
+                    #     programs[-2] = opt.edit_op[2]
+            else:  # i=0 时是预测 [CLS]
+                pred = torch.argmax(pred_edit_num[-1], dim=-1).item()
+        programs.insert(-1, pred)
+        if pred in [end_id, opt.edit_op[-1]]:
             break
-        programs[0].append(pred)
-        target, p = execute(inputs, programs[0], target, dataset.get_token_id('加'), dataset.get_token_id('制'), dataset.get_token_id('0'), p)
+        if i and i % 2 == 0:
+            programs.pop()  # 执行时需要剔除占位符
+            target = execute(inputs, dataset.decode([programs[:]])[0])
+            programs.append(dataset.get_token_id('[CLS]'))  # 执行结束后需要加回占位符
+            target = dataset.tokenize(['[CLS]' + target])[0]  # 将执行得到的 target 添加 [CLS] 并 tokenize
 
-    return dataset.decode(programs)[0], target
+    programs.pop()  # programs 的最后一个是我们的占位符
+    return dataset.decode([programs[:]])[0]
 
 
 def main():
@@ -76,44 +100,35 @@ def main():
     args.add_argument('--trained_model', type=str, default='./output/last/models/best_model.pt')
     args.add_argument('--input', type=str, required=True)
     args.add_argument('--dataset_path', type=str, default='./CSL_data/CSL-Daily_editing_chinese_test.txt')
-    args.add_argument('--editing_casual_mask_file', type=str, default='./CSL_data/editing_casual_mask_CSL_174_40_test.npy')
     args.add_argument('--tokenizer_name', type=str, default='bert-base-chinese')
-    args.add_argument('--max_output_len', type=int, default=20)
+    args.add_argument('--max_output_len', type=int, default=50)
     infere_opt = args.parse_args()
 
-    # with open(infere_opt.train_args_path, 'r', encoding='utf-8') as f:
-    #     opt = json.load(f)
-
-    # model = Glossification(
-    #     opt.i_vocab_size,
-    #     opt.p_vocab_size,
-    #     opt.t_vocab_size,
-    #     src_pad_idx=opt.src_pad_idx,
-    #     trg_pad_idx=opt.trg_pad_idx,
-    #     pro_pad_idx=opt.pro_pad_idx,
-    #     head_num=opt.head_num,
-    #     hidden_size=opt.embeddings_table.weight.shape[1],
-    #     inner_size=opt.inner_size,
-    #     dropout_rate=opt.dropout_rate,
-    #     generator_encoder_n_layers=opt.generator_encoder_n_layers,
-    #     generator_decoder_n_layers=opt.generator_decoder_n_layers,
-    #     executor_encoder_n_layers=opt.executor_encoder_n_layers,
-    #     share_target_embeddings=opt.share_target_embeddings,
-    #     use_pre_trained_embedding=opt.use_pre_trained_embedding,
-    #     pre_trained_embedding=opt.embeddings_table
-    # )
-
     model = torch.load(infere_opt.trained_model, map_location=torch.device('cpu'))
+    # print(type(model))
     CSL_dataset = CSL_Dataset(dataset_file=infere_opt.dataset_path,
-                              editing_casual_mask_file=infere_opt.editing_casual_mask_file,
                               pre_trained_tokenizer=True,
                               tokenizer_name=infere_opt.tokenizer_name)
-    src = infere_opt.input
-
+    src = infere_opt.input.replace(' ', '')
+    infere_opt.edit_op = [CSL_dataset.get_token_id('加'),
+                          CSL_dataset.get_token_id('删'),
+                          CSL_dataset.get_token_id('贴'),
+                          CSL_dataset.get_token_id('过')]
+    infere_opt.edit_num = [CSL_dataset.get_token_id('1'),
+                           CSL_dataset.get_token_id('2'),
+                           CSL_dataset.get_token_id('3'),
+                           CSL_dataset.get_token_id('4'),
+                           CSL_dataset.get_token_id('5'),
+                           CSL_dataset.get_token_id('6'),
+                           CSL_dataset.get_token_id('7'),
+                           CSL_dataset.get_token_id('8'),
+                           CSL_dataset.get_token_id('9')]
     print('model load succeed !')
+    print('the origin sentence: ', src)
     max_output_len = infere_opt.max_output_len
-    program, target = inference(model, src, max_output_len, CSL_dataset)
+    program = inference(model, src, max_output_len, CSL_dataset, infere_opt)
     print('the predicted editing program: ', program)
+    target = execute(src, program)
     print('the predicted gloss: ', target)
 
 
