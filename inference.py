@@ -29,7 +29,7 @@ def execute(input: str, program: str):
     i, p = 0, 0
     target = ''
     while i < len(program):
-        if program[i] == '加':
+        if program[i] == '加' and i < len(program) - 1:
             target += program[i+1]
             i += 2
         elif program[i] == '删' and p < len(input):
@@ -40,7 +40,8 @@ def execute(input: str, program: str):
             target += input[p:p + num]
             p += num
             i += 2
-        elif program[i] == '过':
+        # elif program[i] == '过':
+        else:
             break
     return target
 
@@ -57,7 +58,7 @@ def inference(model, inputs, max_output_len, dataset, opt):
         programs_tensor = torch.tensor(programs).unsqueeze(0)
         target_tensor = torch.tensor(target).unsqueeze(0)
         # print('program shape:', programs_tensor.shape, '; target shape: ', target_tokens.shape)
-        pred_edit_op, pred_edit_num = model(input_tokens, programs_tensor, target_tensor, torch.zeros([len(programs), len(target)]) == 1)  # [1, p_len, edit_num/p_vocab_size]
+        pred_edit_op, pred_edit_num = model(input_tokens, programs_tensor, target_tensor, torch.zeros([1, len(programs), len(target)]) == 1)  # [1, p_len, edit_num/p_vocab_size]
         pred_edit_op, pred_edit_num = pred_edit_op[0], pred_edit_num[0]  # [p_len, edit_num/p_vocab_size]
         if i % 2 == 1:
             pred = torch.argmax(pred_edit_op[-1], dim=-1).item()
@@ -87,7 +88,7 @@ def inference(model, inputs, max_output_len, dataset, opt):
             programs.pop()  # 执行时需要剔除占位符
             target = execute(inputs, dataset.decode([programs[:]])[0])
             programs.append(dataset.get_token_id('[CLS]'))  # 执行结束后需要加回占位符
-            target = dataset.tokenize(['[CLS]' + target])[0]  # 将执行得到的 target 添加 [CLS] 并 tokenize
+            target = dataset.tokenize(['[CLS]' + target])[0].ids  # 将执行得到的 target 添加 [CLS] 并 tokenize
 
     programs.pop()  # programs 的最后一个是我们的占位符
     return dataset.decode([programs[:]])[0]
