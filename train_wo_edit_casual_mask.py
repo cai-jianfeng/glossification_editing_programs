@@ -227,7 +227,7 @@ def main():
     arg.add_argument('--label_smoothing', type=float, default=0.05)
     arg.add_argument('--warmup', type=int, default=100)
     arg.add_argument('--no_cuda', action='store_true')
-    arg.add_argument("--output_dir", type=str, default='./output')
+    arg.add_argument("--output_dir", type=str, default='./output_wo_mask')
     arg.add_argument('--train_epochs', type=int, default=150)
     opt = arg.parse_args()
     if opt.dataset == 'CSL':

@@ -61,35 +61,35 @@ def get_loss(pred, ans, vocab_size, label_smoothing, pad):
     return loss
 
 
-def get_loss(pred, ans, vocab_size, label_smoothing, pad):
-    """
-    compute loss
-    :param pred: [b * t_len, t_vocab_size]
-    :param ans: [b * t_len]
-    :param vocab_size: int, 表示预测的序列的 vocabulary size
-    :param label_smoothing: float, 对 ground-truth 的 one-hot 向量进行 label smoothing
-    :param pad: int, 表示 vocabulary 中 的 '<pad>' 的 index
-    :return: float, 损失值
-    """
-    # took this "normalizing" from tensor2tensor. We subtract it for
-    # readability. This makes no difference on learning.
-    confidence = 1.0 - label_smoothing
-    low_confidence = (1.0 - confidence) / float(vocab_size - 1)
-    normalizing = -(
-        confidence * math.log(confidence) + float(vocab_size - 1) *
-        low_confidence * math.log(low_confidence + 1e-20))
-    # scatter_(·,·,·): 第一个参数表示按照哪个维度进行映射 -> 1 表示按照行
-    # 第二个参数表示映射的索引 -> 其中第 i 个元素值 ans_i 表示映射到 one_hot 第 i 行的第 ans_i 列
-    # 第三个参数表示映射值 -> 将 one_hot 第 i 行的第 ans_i 列设置为 1
-    # print(ans.dtype)
-    one_hot = torch.zeros_like(pred).scatter_(1, ans.unsqueeze(1), 1)  # [b * t_len, t_vocab_size]
-    one_hot = one_hot * confidence + (1 - one_hot) * low_confidence  # [b * t_len, t_vocab_size]
-    log_prob = F.log_softmax(pred, dim=1)  # [b * t_len, t_vocab_size]
-    xent = -(one_hot * log_prob).sum(dim=1)  # [b * t_len,]
-    # mask_select: 取出 xent 中对应 mask 为 True 的值，注意最后返回的张量是 1 维的
-    xent = xent.masked_select(ans != pad)  # 选择不是 '<pad>' 填充的预测结果
-    loss = (xent - normalizing).mean()
-    return loss
+# def get_loss(pred, ans, vocab_size, label_smoothing, pad):
+#     """
+#     compute loss
+#     :param pred: [b * t_len, t_vocab_size]
+#     :param ans: [b * t_len]
+#     :param vocab_size: int, 表示预测的序列的 vocabulary size
+#     :param label_smoothing: float, 对 ground-truth 的 one-hot 向量进行 label smoothing
+#     :param pad: int, 表示 vocabulary 中 的 '<pad>' 的 index
+#     :return: float, 损失值
+#     """
+#     # took this "normalizing" from tensor2tensor. We subtract it for
+#     # readability. This makes no difference on learning.
+#     confidence = 1.0 - label_smoothing
+#     low_confidence = (1.0 - confidence) / float(vocab_size - 1)
+#     normalizing = -(
+#         confidence * math.log(confidence) + float(vocab_size - 1) *
+#         low_confidence * math.log(low_confidence + 1e-20))
+#     # scatter_(·,·,·): 第一个参数表示按照哪个维度进行映射 -> 1 表示按照行
+#     # 第二个参数表示映射的索引 -> 其中第 i 个元素值 ans_i 表示映射到 one_hot 第 i 行的第 ans_i 列
+#     # 第三个参数表示映射值 -> 将 one_hot 第 i 行的第 ans_i 列设置为 1
+#     # print(ans.dtype)
+#     one_hot = torch.zeros_like(pred).scatter_(1, ans.unsqueeze(1), 1)  # [b * t_len, t_vocab_size]
+#     one_hot = one_hot * confidence + (1 - one_hot) * low_confidence  # [b * t_len, t_vocab_size]
+#     log_prob = F.log_softmax(pred, dim=1)  # [b * t_len, t_vocab_size]
+#     xent = -(one_hot * log_prob).sum(dim=1)  # [b * t_len,]
+#     # mask_select: 取出 xent 中对应 mask 为 True 的值，注意最后返回的张量是 1 维的
+#     xent = xent.masked_select(ans != pad)  # 选择不是 '<pad>' 填充的预测结果
+#     loss = (xent - normalizing).mean()
+#     return loss
 
 
 def get_accuracy(pred, ans, pad):

@@ -89,6 +89,8 @@ def train(model, dataloader, optimizer, opt, device, writer, global_step):
         pred_edit_op = pred_edit_op.view(-1, pred_edit_op.size(-1))  # [b * p_len/2, edit_op_num]
         pred_edit_num = pred_edit_num.view(-1, pred_edit_num.size(-1))  # [b * p_len/2, p_vocab_size]
         ans_edit_op = pro[:, 1::2].contiguous().view(-1)  # [b * p_len/2]
+        # print(pro[:, 1::2].stride(), '; ', pro[:, 1::2].size())
+        # ans_edit_op = pro[:, 1::2].view(-1)  # [b * p_len/2]
         # 将 ans_edit_op由 tokenize 得到的 p_vocab_size 转化为 edit_num
         ans_edit_op[ans_edit_op == opt.pro_pad_idx] = opt.edit_num
         for i in range(opt.edit_num):
