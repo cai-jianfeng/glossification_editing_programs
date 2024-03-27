@@ -20,18 +20,15 @@ pip install rouge
 
 # preparation
 
-download CSL dataset in ```./``` (under the current project directory) from [huggingface](https://huggingface.co/datasets/caijanfeng/CSL_dataset). 
+download CSL dataset in ```./``` (under the current project directory) from [huggingface](https://huggingface.co/datasets/caijanfeng/CSL_edit_dataset). 
 The dataset file directory structure is as follows:
 
 ```
 CSL_data
 |-- CSL-Daily.txt
-|-- CSL-Daily_editing.txt
 |-- CSL-Daily_editing_chinese.txt
+|-- CSL-Daily_editing_chinese_past.txt
 |-- CSL-Daily_editing_chinese_test.txt
-|-- CSL-Daily_test.txt
-|-- editing_casual_mask_CSL_174_40.npy
-|-- editing_casual_mask_CSL_174_40_test.npy
 ```
 
 # train
@@ -46,8 +43,12 @@ download model checkpoints trained on CSL dataset in ```./``` (under the current
 The checkpoints file directory structure is as follows:
 
 ```
-output
-|-- last
+|--output_wo_mask
+    |-- models
+        |-- best_model.pt
+        |-- global_step.pt
+        |-- last_model.pt
+|--output
     |-- models
         |-- best_model.pt
         |-- global_step.pt
