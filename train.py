@@ -168,7 +168,7 @@ def validation(dataloader, model, global_step, val_writer, opt, device):
             # total_bleu_score += results['bleu']
             # each_bleu_score = [origin + new for origin, new in zip(each_bleu_score, results['precisions'])]
             smooth_fun = SmoothingFunction()
-            bleu3 = corpus_bleu(pro_index, pred_index, weights=[0.5, 0.5, 0.5], smoothing_function=smooth_fun.method1)
+            bleu3 = corpus_bleu(pro_index, pred_index, weights=[1/3, 1/3, 1/3], smoothing_function=smooth_fun.method1)
             bleu4 = corpus_bleu(pro_index, pred_index, smoothing_function=smooth_fun.method1)
             pred_edit_op = pred_edit_op.view(-1, pred_edit_op.size(-1))  # [b * p_len/2, edit_op_num]
             pred_edit_num = pred_edit_num.view(-1, pred_edit_num.size(-1))  # [b * p_len/2, p_vocab_size]

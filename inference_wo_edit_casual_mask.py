@@ -42,6 +42,8 @@ def execute(input: str, program: str):
             i += 2
         elif program[i] == '过':
             break
+        else:
+            i += 2
     return target
 
 
@@ -88,8 +90,8 @@ def inference(model, inputs, max_output_len, dataset, opt):
 def main():
     args = argparse.ArgumentParser()
 
-    args.add_argument('--train_args_path', type=str, default='./output/train.json')
-    args.add_argument('--trained_model', type=str, default='./output/last/models/best_model.pt')
+    args.add_argument('--train_args_path', type=str, default='./output_wo_mask/train.json')
+    args.add_argument('--trained_model', type=str, default='./output_wo_mask/last/models/best_model.pt')
     args.add_argument('--input', type=str, required=True)
     args.add_argument('--dataset_path', type=str, default='./CSL_data/CSL-Daily_editing_chinese_test.txt')
     args.add_argument('--tokenizer_name', type=str, default='bert-base-chinese')

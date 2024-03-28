@@ -40,9 +40,10 @@ def execute(input: str, program: str):
             target += input[p:p + num]
             p += num
             i += 2
-        # elif program[i] == '过':
-        else:
+        elif program[i] == '过':
             break
+        else:
+            i += 2
     return target
 
 
