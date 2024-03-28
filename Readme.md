@@ -73,6 +73,8 @@ python inference.py --input=<the input sentence you want to inference> --max_out
 python inference_wo_edit_casual_mask.py --input=<the input sentence you want to inference> --max_output_len=<the max output length of predicted editing program>
 ```
 
+# result
+
 |                 Methods                  |    BLEU3    |    BLEU4    |   ROUGE-L   |
 |:----------------------------------------:|:-----------:|:-----------:|:-----------:|
 |             Edit-Att(Origin)             |    24.93    |    18.07    |    49.66    |
