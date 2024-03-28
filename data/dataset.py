@@ -140,18 +140,22 @@ class CSL_Dataset(Dataset):
         mask = np.ones([len(program), len(target)])
         p = 1
         mask[0, :p] = 0
-        for i in range(1, 2, len(program)):
-            if program == self.get_token_id('加'):
+        for i in range(1, len(program), 2):
+            if program[i] == self.get_token_id('加'):
                 mask[i, :p] = 0
                 mask[i + 1, :p] = 0
                 p += 1
-            elif program == self.get_token_id('贴'):
+            elif program[i] == self.get_token_id('贴'):
                 mask[i, :p] = 0
                 mask[i + 1, :p] = 0
-                p += program[i + 1]
-            elif program == self.get_token_id('删'):
+                p += int(self.get_token_from_id(program[i + 1]))
+            elif program[i] == self.get_token_id('删'):
                 mask[i, :p] = 0
                 mask[i + 1, :p] = 0
+            elif program[i] == self.get_token_id('过'):
+                mask[i, :p] = 0
+                mask[i + 1, :p] = 0
+                break
 
         return mask == 1
 
