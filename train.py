@@ -214,7 +214,7 @@ def main():
     arg.add_argument('--dataset', type=str, default='CSL')
     arg.add_argument('--dataset_path', type=str, default='./CSL_data/')
     arg.add_argument('--tokenizer', type=str, default='bert-base-chinese')
-    arg.add_argument('--batch_size', type=int, default=4)
+    arg.add_argument('--batch_size', type=int, default=64)
     arg.add_argument('--head_num', type=int, default=10)
     arg.add_argument('--inner_size', type=int, default=1024)
     arg.add_argument('--dropout_rate', type=float, default=0.1)
@@ -230,7 +230,7 @@ def main():
     arg.add_argument('--train_epochs', type=int, default=150)
     opt = arg.parse_args()
     if opt.dataset == 'CSL':
-        dataset_file = os.path.join(opt.dataset_path, 'CSL-Daily_editing_chinese_test.txt')
+        dataset_file = os.path.join(opt.dataset_path, 'CSL-Daily_editing_chinese.txt')
         # editing_casual_mask_file = os.path.join(opt.dataset_path, 'editing_casual_mask_CSL_174_40_test.npy')
     else:
         assert True, 'Currently only the CSL datasets is supported !'
