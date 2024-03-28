@@ -99,7 +99,7 @@ def main():
     args = argparse.ArgumentParser()
 
     args.add_argument('--train_args_path', type=str, default='./output/train.json')
-    args.add_argument('--trained_model', type=str, default='./output/last/models/best_model.pt')
+    args.add_argument('--trained_model', type=str, default='./output/last/models/last_model.pt')
     args.add_argument('--input', type=str, required=True)
     args.add_argument('--dataset_path', type=str, default='./CSL_data/CSL-Daily_editing_chinese_test.txt')
     args.add_argument('--tokenizer_name', type=str, default='bert-base-chinese')

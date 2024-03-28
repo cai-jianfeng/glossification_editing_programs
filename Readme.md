@@ -33,8 +33,16 @@ CSL_data
 
 # train
 
+train with the editing casual mask and the Executor:
+
 ```shell
 python train.py --share_target_embeddings --use_pre_trained_embedding
+```
+
+train without the editing casual mask and the Executor:
+
+```shell
+python train_wo_edit_casual_mask.py --share_target_embeddings --use_pre_trained_embedding
 ```
 
 # inference
@@ -59,4 +67,8 @@ then you can use the model checkpoints to inference any input sentence:
 
 ```shell
 python inference.py --input=<the input sentence you want to inference> --max_output_len=<the max output length of predicted editing program>
+```
+
+```shell
+python inference_wo_edit_casual_mask.py --input=<the input sentence you want to inference> --max_output_len=<the max output length of predicted editing program>
 ```

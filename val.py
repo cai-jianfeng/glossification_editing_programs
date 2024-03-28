@@ -53,7 +53,7 @@ if __name__ == '__main__':
     print('total best rouge-l: ', total_rouge_l)
     print('total best accuracy: ', total_acc)
 
-    with open(os.path.join('./output_wo_mask', 'result.txt'), 'w', encoding='utf-8') as f:
+    with open(os.path.join('./output', 'result.txt'), 'w', encoding='utf-8') as f:
         f.write(f'total best bleu3: {total_bleu3}\n')
         f.write(f'total best bleu4: {total_bleu4}\n')
         f.write(f'total best rouge-l: {total_rouge_l}\n')
