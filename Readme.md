@@ -72,7 +72,7 @@ python inference.py --input=<the input sentence you want to inference> --max_out
 ```shell
 python inference_wo_edit_casual_mask.py --input=<the input sentence you want to inference> --max_output_len=<the max output length of predicted editing program>
 ```
-
+$L_a$
 # result
 
 |                                      Methods                                      |   BLEU3   |   BLEU4   |  ROUGE-L  |
