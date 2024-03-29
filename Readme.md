@@ -75,7 +75,7 @@ python inference_wo_edit_casual_mask.py --input=<the input sentence you want to 
 
 # result
 
-|                 Methods                  |    BLEU3    |    BLEU4    |   ROUGE-L   |
+|                 ![公式1](http://latex.codecogs.com/png.latex?\dpi{100}\large\int_{0}^{\infty}f(x)\,\mathrm{d}x)                  |    BLEU3    |    BLEU4    |   ROUGE-L   |
 |:----------------------------------------:|:-----------:|:-----------:|:-----------:|
 |             Edit-Att(Origin)             |    24.93    |    18.07    |    49.66    |
 |   Edit-Att+$\mathcal{L}_{RL}$(Origin)    |    25.51    |    18.89    |    49.91    |
